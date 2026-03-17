@@ -179,28 +179,32 @@
                     <div id="playerCard" style="{{ $firstPlayer ? '' : 'display:none;' }}">
 
                         {{-- Profile --}}
-                        <div class="ap-profile">
-                            <div class="ap-avatar-wrap">
+                        {{-- Profile — Big Image Layout --}}
+                        <div class="ap-profile-new">
+
+                            {{-- Left: Big Avatar --}}
+                            <div class="ap-avatar-big-wrap">
                                 @php
                                     $__firstAvatarSrc = $firstPlayer ? playerAvatarSrc($firstPlayer) : null;
                                     $__firstInitial = $firstPlayer ? strtoupper(substr($firstPlayer->name, 0, 1)) : '';
                                     $__firstBg = $firstPlayer ? playerAvatarColor($firstPlayer->name) : '#6c3fc5';
                                 @endphp
-
                                 <div id="avatarImg" style="{{ $__firstAvatarSrc ? '' : 'display:none;' }}">
-                                    <img id="avatarPhoto" src="{{ $__firstAvatarSrc ?? '' }}" class="ap-avatar-img"
+                                    <img id="avatarPhoto" src="{{ $__firstAvatarSrc ?? '' }}" class="ap-avatar-big"
                                         alt="Player"
                                         onerror="this.parentElement.style.display='none';
-                  document.getElementById('avatarPlaceholder')
-                  .style.display='flex';">
+                          document.getElementById('avatarPlaceholder')
+                          .style.display='flex';">
                                 </div>
-                                <div id="avatarPlaceholder" class="ap-avatar-placeholder"
+                                <div id="avatarPlaceholder" class="ap-avatar-big-placeholder"
                                     style="{{ $__firstAvatarSrc ? 'display:none;' : '' }}
-            background:{{ $__firstBg }};">
+                    background:{{ $__firstBg }};">
                                     <span id="avatarInitial">{{ $__firstInitial }}</span>
                                 </div>
                             </div>
-                            <div class="ap-profile-info">
+
+                            {{-- Right: Name + Status + 2-col Details --}}
+                            <div class="ap-profile-right">
                                 <div class="ap-profile-name-row">
                                     <h3 id="pName" class="ap-profile-name">
                                         {{ $firstPlayer->name ?? '' }}
@@ -212,11 +216,41 @@
                                 <div id="pRole" class="ap-profile-role">
                                     {{ $firstPlayer->role ?? '' }}
                                 </div>
-                                <div class="ap-profile-status-row">
+                                <div class="ap-profile-status-row mb-3">
                                     <span id="pStatusBadge"
-                                        class="ap-status-badge ap-status-{{ $firstPlayer->status ?? 'approved' }}">
+                                        class="ap-status-badge
+                  ap-status-{{ $firstPlayer->status ?? 'approved' }}">
                                         {{ strtoupper($firstPlayer->status ?? 'APPROVED') }}
                                     </span>
+                                </div>
+
+                                {{-- 2-column details --}}
+                                <div class="ap-details-grid-new" id="detailsGrid">
+                                    @if ($firstPlayer)
+                                        @php
+                                            $dg = [
+                                                ['Mobile', $firstPlayer->mobile ?? '—'],
+                                                ['City', $firstPlayer->city ?? '—'],
+                                                ['Age', $firstPlayer->age ?? '—'],
+                                                ['Jersey', $firstPlayer->jersey_number ?? '—'],
+                                                ['Batting', $firstPlayer->batting_style ?? '—'],
+                                                ['Bowling', $firstPlayer->bowling_style ?? '—'],
+                                                ['Experience', $firstPlayer->experience ?? '—'],
+                                                [
+                                                    'Base Price',
+                                                    $firstPlayer->base_price > 0
+                                                        ? '₹' . number_format($firstPlayer->base_price)
+                                                        : '—',
+                                                ],
+                                            ];
+                                        @endphp
+                                        @foreach ($dg as $item)
+                                            <div class="ap-detail-box">
+                                                <div class="ap-detail-lbl">{{ $item[0] }}</div>
+                                                <div class="ap-detail-val">{{ $item[1] }}</div>
+                                            </div>
+                                        @endforeach
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -425,28 +459,27 @@
                 </div>
                 <div class="ap-players-list">
                     @if ($players->count() > 0)
-                       @foreach ($players as $p)
-@php
-    $__pSrc = playerAvatarSrc($p);
-    $__pBg  = playerAvatarColor($p->name ?? '');
-@endphp
-<div class="ap-player-item" data-pid="{{ $p->player_id }}">
-    @if($__pSrc)
-        <img src="{{ $__pSrc }}"
-             style="width:32px;height:32px;border-radius:7px;
+                        @foreach ($players as $p)
+                            @php
+                                $__pSrc = playerAvatarSrc($p);
+                                $__pBg = playerAvatarColor($p->name ?? '');
+                            @endphp
+                            <div class="ap-player-item" data-pid="{{ $p->player_id }}">
+                                @if ($__pSrc)
+                                    <img src="{{ $__pSrc }}"
+                                        style="width:32px;height:32px;border-radius:7px;
                     object-fit:cover;flex-shrink:0;"
-             onerror="this.style.display='none';
+                                        onerror="this.style.display='none';
                       this.nextElementSibling.style.display='flex';">
-        <div class="ap-player-item-avatar"
-             style="display:none;background:{{ $__pBg }};">
-            {{ strtoupper(substr($p->name, 0, 1)) }}
-        </div>
-    @else
-        <div class="ap-player-item-avatar"
-             style="background:{{ $__pBg }};">
-            {{ strtoupper(substr($p->name, 0, 1)) }}
-        </div>
-    @endif
+                                    <div class="ap-player-item-avatar"
+                                        style="display:none;background:{{ $__pBg }};">
+                                        {{ strtoupper(substr($p->name, 0, 1)) }}
+                                    </div>
+                                @else
+                                    <div class="ap-player-item-avatar" style="background:{{ $__pBg }};">
+                                        {{ strtoupper(substr($p->name, 0, 1)) }}
+                                    </div>
+                                @endif
                                 <div class="ap-player-item-info">
                                     <div class="ap-player-item-name">
                                         {{ $p->name }}
@@ -560,8 +593,8 @@
 @push('styles')
     <style>
         /* ═══════════════════════════════════════════
-                           AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
-                           ═══════════════════════════════════════════ */
+                                               AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
+                                               ═══════════════════════════════════════════ */
 
         /* ── VARIABLES ── */
         :root {
@@ -1765,6 +1798,68 @@
                 align-items: flex-start;
             }
         }
+
+        /* ── BIG PLAYER PROFILE ── */
+        .ap-profile-new {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f0f7ff, #f8faff);
+            border: 1px solid #dbeafe;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            align-items: flex-start;
+        }
+
+        .ap-avatar-big-wrap {
+            flex-shrink: 0;
+        }
+
+        .ap-avatar-big {
+            width: 130px;
+            height: 150px;
+            border-radius: 12px;
+            object-fit: cover;
+            object-position: top;
+            border: 3px solid #bfdbfe;
+            display: block;
+        }
+
+        .ap-avatar-big-placeholder {
+            width: 130px;
+            height: 150px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        .ap-profile-right {
+            flex: 1;
+            min-width: 0;
+        }
+
+        /* ── NEW 2-COL DETAILS GRID ── */
+        .ap-details-grid-new {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+        }
+
+        @media (max-width: 480px) {
+            .ap-profile-new {
+                flex-direction: column;
+            }
+
+            .ap-avatar-big,
+            .ap-avatar-big-placeholder {
+                width: 100%;
+                height: 180px;
+            }
+        }
     </style>
 @endpush
 
@@ -2070,8 +2165,9 @@
                 DOM.avatarImg.style.display = 'block';
                 DOM.avatarPh.style.display = 'none';
                 DOM.avatarPhoto.src = src;
+                DOM.avatarPhoto.className = 'ap-avatar-big';
                 DOM.avatarPhoto.onerror = function() {
-                    this.style.display = 'none';
+                    this.parentElement.style.display = 'none';
                     DOM.avatarPh.style.display = 'flex';
                     DOM.avatarInitial.textContent = initial;
                 };
@@ -2104,11 +2200,14 @@
             ];
 
             DOM.detailsGrid.innerHTML = fields.map(([lbl, val]) => `
-        <div class="ap-detail-box">
-            <div class="ap-detail-lbl">${lbl}</div>
-            <div class="ap-detail-val">${val}</div>
-        </div>
-    `).join('');
+                <div class="ap-detail-box">
+                    <div class="ap-detail-lbl">${lbl}</div>
+                    <div class="ap-detail-val">${val}</div>
+                </div>
+            `).join('');
+
+            // Switch to new grid class
+            DOM.detailsGrid.className = 'ap-details-grid-new';
 
             // Base price hint + pre-fill
             if (p.base_price > 0) {

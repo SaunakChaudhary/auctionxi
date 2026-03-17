@@ -98,19 +98,45 @@
     </div>
 
     {{-- Search --}}
+    {{-- Search Player — Separate Section --}}
     <div class="card mb-4" id="search">
-        <div class="card-header">
-            <i class="bi bi-search"></i> Search Player by ID
+        <div class="card-header" style="justify-content:space-between;">
+            <span>
+                <i class="bi bi-search"></i>
+                Search Player by ID
+            </span>
+            <span style="font-size:0.72rem;color:var(--muted);
+                     font-weight:400;">
+                Search pauses auto-refresh
+            </span>
         </div>
         <div class="card-body">
-            <div class="d-flex gap-2 mb-3" style="max-width:420px;">
-                <input type="text" id="searchInput" class="form-control" placeholder="e.g. PX1001"
-                    style="font-weight:600;letter-spacing:1px;" onkeydown="if(event.key==='Enter') searchPlayer()">
-                <button onclick="searchPlayer()" class="btn btn-primary" style="white-space:nowrap;">
+            <div class="d-flex gap-2 mb-3" style="max-width:480px;">
+                <input type="text" id="searchInput" class="form-control" placeholder="Enter Player ID — e.g. PX1001"
+                    style="font-weight:700;letter-spacing:1px;
+                          text-transform:uppercase;"
+                    autocomplete="off" onkeydown="if(event.key==='Enter') searchPlayer()">
+                <button onclick="searchPlayer()" class="btn btn-primary" style="white-space:nowrap;min-width:90px;">
                     <i class="bi bi-search me-1"></i>Search
                 </button>
+                <button onclick="clearSearch()" class="btn btn-outline-secondary" title="Clear search">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
+
+            {{-- Search Result --}}
             <div id="searchResult" style="display:none;"></div>
+
+            {{-- Search Notice --}}
+            <div id="searchNotice"
+                style="font-size:0.75rem;color:var(--muted);
+                    display:none;margin-top:8px;">
+                <i class="bi bi-pause-circle me-1"></i>
+                Auto-refresh paused while searching.
+                <a href="#" onclick="clearSearch();return false;" style="color:var(--primary-lt);font-weight:600;">
+                    Resume
+                </a>
+            </div>
         </div>
     </div>
 
@@ -197,7 +223,7 @@
                                             @if ($r->team)
                                                 <div class="d-flex align-items-center gap-2">
                                                     @if ($r->team->logo)
-                                                        <img src="{{ teamLogoSrc($r->team)}}"
+                                                        <img src="{{ teamLogoSrc($r->team) }}"
                                                             style="width:24px;height:24px;
                                                 border-radius:4px;
                                                 object-fit:cover;">
@@ -339,47 +365,80 @@
 
 @push('scripts')
     <script>
-        // Auto refresh countdown
-        let s = 12;
-        const cdEl = document.getElementById('cd');
-        setInterval(() => {
-            s--;
-            if (cdEl) cdEl.textContent = s;
-            if (s <= 0) location.reload();
-        }, 1000);
+        'use strict';
 
-        // Search player
+        // ── AUTO REFRESH ──
+        let refreshSeconds = 12;
+        let refreshPaused = false;
+        let refreshTimer = null;
+        const cdEl = document.getElementById('cd');
+
+        function startRefreshTimer() {
+            refreshTimer = setInterval(() => {
+                if (refreshPaused) return;
+                refreshSeconds--;
+                if (cdEl) cdEl.textContent = refreshSeconds;
+                if (refreshSeconds <= 0) location.reload();
+            }, 1000);
+        }
+
+        function pauseRefresh() {
+            refreshPaused = true;
+            if (cdEl) cdEl.textContent = '⏸';
+            document.getElementById('searchNotice').style.display = 'block';
+        }
+
+        function resumeRefresh() {
+            refreshPaused = false;
+            refreshSeconds = 12;
+            if (cdEl) cdEl.textContent = refreshSeconds;
+            document.getElementById('searchNotice').style.display = 'none';
+        }
+
+        startRefreshTimer();
+
+        // ── CLEAR SEARCH ──
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('searchResult').style.display = 'none';
+            resumeRefresh();
+        }
+
+        // ── SEARCH PLAYER ──
         async function searchPlayer() {
             const pid = document.getElementById('searchInput')
                 .value.trim().toUpperCase();
             if (!pid) return;
 
+            // Pause auto-refresh while user is searching
+            pauseRefresh();
+
             const resultDiv = document.getElementById('searchResult');
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `
-            <div style="padding:16px;color:var(--muted);
-                        font-size:0.875rem;">
-                <span class="spinner-border spinner-border-sm
-                             me-2 text-primary"></span>
-                Searching for ${pid}...
-            </div>`;
+        <div style="padding:12px 0;color:var(--muted);font-size:0.875rem;
+                    display:flex;align-items:center;gap:8px;">
+            <span class="spinner-border spinner-border-sm text-primary">
+            </span>
+            Searching for <strong>${pid}</strong>...
+        </div>`;
 
             try {
                 const res = await fetch(
                     `{{ route('public.search', $tournament->code) }}` +
-                    `?player_id=${pid}`
+                    `?player_id=${encodeURIComponent(pid)}`
                 );
                 const player = await res.json();
 
                 if (!player) {
                     resultDiv.innerHTML = `
-                    <div style="padding:16px;background:#fef2f2;
-                                border:1px solid #fecaca;
-                                border-radius:8px;font-size:0.875rem;
-                                color:#991b1b;">
-                        <i class="bi bi-exclamation-circle me-2"></i>
-                        No player found with ID <strong>${pid}</strong>
-                    </div>`;
+                <div style="padding:14px 16px;background:#fef2f2;
+                            border:1px solid #fecaca;border-radius:8px;
+                            font-size:0.875rem;color:#991b1b;">
+                    <i class="bi bi-exclamation-circle me-2"></i>
+                    No player found with ID
+                    <strong>${pid}</strong>
+                </div>`;
                     return;
                 }
 
@@ -396,77 +455,132 @@
                     unsold: 'status-unsold'
                 };
 
-                const photoHtml = player.photo ?
-                    `<img src="${player.photo}"
-                        style="width:52px;height:52px;border-radius:8px;
-                               object-fit:cover;border:1px solid var(--border);">` :
-                    player.image_url ?
-                    `<img src="${player.image_url}"
-                        style="width:52px;height:52px;border-radius:8px;
-                               object-fit:cover;border:1px solid var(--border);"
-                        onerror="this.outerHTML='<div style=\'width:52px;height:52px;border-radius:8px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:1.2rem;\'>${player.name.charAt(0).toUpperCase()}</div>'">` :
-                    `<div style="width:52px;height:52px;border-radius:8px;
-                               background:var(--primary);display:flex;
-                               align-items:center;justify-content:center;
-                               font-weight:700;color:#fff;font-size:1.2rem;">
-                       ${player.name.charAt(0).toUpperCase()}
-                   </div>`;
+                // Build avatar
+                const src = player.photo ?
+                    player.photo :
+                    (player.image_url || null);
+
+                const initial = (player.name || '?').charAt(0).toUpperCase();
+
+                const photoHtml = src ?
+                    `<img src="${src}"
+                    style="width:80px;height:90px;border-radius:10px;
+                           object-fit:cover;object-position:top;
+                           border:2px solid #e2e8f0;flex-shrink:0;"
+                    onerror="this.outerHTML='<div style=\'width:80px;height:90px;border-radius:10px;background:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:2rem;flex-shrink:0;\'>${initial}</div>'">` :
+                    `<div style="width:80px;height:90px;border-radius:10px;
+                           background:var(--primary);display:flex;
+                           align-items:center;justify-content:center;
+                           font-weight:800;color:#fff;font-size:2rem;
+                           flex-shrink:0;">
+                   ${initial}
+               </div>`;
 
                 resultDiv.innerHTML = `
-                <div style="background:#f8fafc;border:1px solid var(--border);
-                            border-radius:10px;padding:16px;">
-                    <div class="d-flex align-items-start gap-3">
-                        ${photoHtml}
-                        <div>
-                            <div class="d-flex align-items-center
-                                        gap-2 flex-wrap mb-1">
-                                <strong style="font-size:1rem;">
-                                    ${player.name}
-                                </strong>
-                                <span class="pid-badge">
-                                    ${player.player_id}
-                                </span>
-                                <span class="status-badge
-                                    ${statusClasses[player.status]||''}">
-                                    ${statusLabels[player.status]||player.status}
-                                </span>
-                            </div>
-                            <div style="font-size:0.82rem;
-                                        color:var(--muted);margin-bottom:8px;">
-                                <span class="role-badge">${player.role}</span>
-                                ${player.city
-                                  ? `&nbsp;·&nbsp;${player.city}` : ''}
-                                ${player.age
-                                  ? `&nbsp;·&nbsp;Age ${player.age}` : ''}
-                            </div>
-                            <div class="d-flex gap-2 flex-wrap">
-                                ${player.batting_style ? `
-                                    <span style="background:#f1f5f9;
-                                                 color:var(--mid);
-                                                 padding:2px 8px;
-                                                 border-radius:4px;
-                                                 font-size:0.72rem;">
-                                        🏏 ${player.batting_style}
-                                    </span>` : ''}
-                                ${player.base_price > 0 ? `
-                                    <span style="background:#eff6ff;
-                                                 color:var(--primary);
-                                                 padding:2px 8px;
-                                                 border-radius:4px;
-                                                 font-size:0.72rem;
-                                                 font-weight:600;">
-                                        Base: ₹${Number(player.base_price)
-                                                 .toLocaleString()}
-                                    </span>` : ''}
-                            </div>
+            <div style="background:#f8fafc;border:1px solid var(--border);
+                        border-radius:10px;padding:16px;">
+                <div style="display:flex;gap:16px;align-items:flex-start;">
+                    ${photoHtml}
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;
+                                    gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                            <strong style="font-size:1.05rem;">
+                                ${player.name}
+                            </strong>
+                            <span class="pid-badge">
+                                ${player.player_id}
+                            </span>
+                            <span class="status-badge
+                                ${statusClasses[player.status]||''}">
+                                ${statusLabels[player.status]||player.status}
+                            </span>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <span class="role-badge">${player.role}</span>
+                            ${player.city
+                              ? `<span style="font-size:0.78rem;
+                                                 color:var(--muted);
+                                                 margin-left:6px;">
+                                         ${player.city}
+                                     </span>` : ''}
+                            ${player.age
+                              ? `<span style="font-size:0.78rem;
+                                                 color:var(--muted);
+                                                 margin-left:6px;">
+                                         Age ${player.age}
+                                     </span>` : ''}
+                        </div>
+                        <div style="display:grid;
+                                    grid-template-columns:1fr 1fr;
+                                    gap:6px;">
+                            ${player.mobile ? `
+                                <div style="background:#fff;border:1px solid
+                                            var(--border);border-radius:6px;
+                                            padding:6px 10px;">
+                                    <div style="font-size:0.62rem;font-weight:600;
+                                                color:var(--muted);
+                                                text-transform:uppercase;
+                                                margin-bottom:1px;">
+                                        Mobile
+                                    </div>
+                                    <div style="font-size:0.8rem;font-weight:600;">
+                                        ${player.mobile}
+                                    </div>
+                                </div>` : ''}
+                            ${player.base_price > 0 ? `
+                                <div style="background:#eff6ff;border:1px solid
+                                            #bfdbfe;border-radius:6px;
+                                            padding:6px 10px;">
+                                    <div style="font-size:0.62rem;font-weight:600;
+                                                color:var(--primary);
+                                                text-transform:uppercase;
+                                                margin-bottom:1px;">
+                                        Base Price
+                                    </div>
+                                    <div style="font-size:0.8rem;font-weight:700;
+                                                color:var(--primary-lt);">
+                                        ₹${Number(player.base_price)
+                                             .toLocaleString('en-IN')}
+                                    </div>
+                                </div>` : ''}
+                            ${player.batting_style ? `
+                                <div style="background:#fff;border:1px solid
+                                            var(--border);border-radius:6px;
+                                            padding:6px 10px;">
+                                    <div style="font-size:0.62rem;font-weight:600;
+                                                color:var(--muted);
+                                                text-transform:uppercase;
+                                                margin-bottom:1px;">
+                                        Batting
+                                    </div>
+                                    <div style="font-size:0.8rem;font-weight:600;">
+                                        ${player.batting_style}
+                                    </div>
+                                </div>` : ''}
+                            ${player.experience ? `
+                                <div style="background:#fff;border:1px solid
+                                            var(--border);border-radius:6px;
+                                            padding:6px 10px;">
+                                    <div style="font-size:0.62rem;font-weight:600;
+                                                color:var(--muted);
+                                                text-transform:uppercase;
+                                                margin-bottom:1px;">
+                                        Experience
+                                    </div>
+                                    <div style="font-size:0.8rem;font-weight:600;">
+                                        ${player.experience}
+                                    </div>
+                                </div>` : ''}
                         </div>
                     </div>
-                </div>`;
+                </div>
+            </div>`;
+
             } catch (e) {
                 resultDiv.innerHTML = `
-                <div class="alert alert-danger" style="border-radius:8px;">
-                    Error searching. Please try again.
-                </div>`;
+            <div class="alert alert-danger" style="border-radius:8px;">
+                Error searching. Please try again.
+            </div>`;
             }
         }
     </script>
