@@ -138,21 +138,33 @@
                                 data-name="{{ strtolower($player->name) }}">
                                 {{-- Player Info --}}
                                 <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        @if ($player->photo)
-                                            <img src="{{ Storage::url($player->photo) }}" class="player-avatar"
-                                                alt="{{ $player->name }}">
-                                        @elseif($player->image_url)
-                                            <img src="{{ $player->image_url }}" class="player-avatar"
-                                                alt="{{ $player->name }}"
+                                    <div class="d-flex align-items-center gap-2">@php
+                                        $__src = playerAvatarSrc($player);
+                                        $__initial = strtoupper(substr($player->name ?? '?', 0, 1));
+                                        $__bg = playerAvatarColor($player->name ?? '');
+                                    @endphp
+                                        @if ($__src)
+                                            <img src="{{ $__src }}" alt="{{ $player->name }}"
+                                                style="width:40px;height:40px;border-radius:50%;
+                object-fit:cover;flex-shrink:0;
+                border:2px solid #e8eaf0;"
                                                 onerror="this.style.display='none';
-              this.nextElementSibling.style.display='flex';">
-                                            <div class="player-avatar-placeholder" style="display:none;">
-                                                {{ strtoupper(substr($player->name, 0, 1)) }}
+                  this.nextElementSibling.style.display='flex';">
+                                            <div
+                                                style="display:none;width:40px;height:40px;
+                border-radius:50%;background:{{ $__bg }};
+                color:#fff;font-weight:700;font-size:0.875rem;
+                align-items:center;justify-content:center;
+                flex-shrink:0;">
+                                                {{ $__initial }}
                                             </div>
                                         @else
-                                            <div class="player-avatar-placeholder">
-                                                {{ strtoupper(substr($player->name, 0, 1)) }}
+                                            <div
+                                                style="width:40px;height:40px;border-radius:50%;
+                background:{{ $__bg }};color:#fff;font-weight:700;
+                font-size:0.875rem;display:flex;align-items:center;
+                justify-content:center;flex-shrink:0;">
+                                                {{ $__initial }}
                                             </div>
                                         @endif
                                         <div>

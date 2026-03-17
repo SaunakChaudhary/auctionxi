@@ -80,7 +80,6 @@ Route::middleware('auth')->group(function () {
         Route::post('/update-status',          [AuctionController::class, 'updateStatus'])->name('updateStatus');
         Route::get('/results',                 [AuctionController::class, 'results'])->name('results');
     });
-
 });
 
 // ─────────────────────────────────────────
@@ -94,4 +93,4 @@ Route::post('/auctionxi/player-register/{code}', [PlayerController::class, 'publ
 // Live Auction Viewer (public)
 Route::get('/auctionxi/live/{code}',             [PublicController::class, 'live'])->name('public.live');
 Route::get('/auctionxi/live/{code}/search',      [PublicController::class, 'searchPlayer'])->name('public.search');
-Route::get('/auctionxi/live/{code}/team/{teamId}',[PublicController::class, 'teamSquad'])->name('public.team.squad');
+Route::get('/auctionxi/live/{code}/team/{teamId}', [PublicController::class, 'teamSquad'])->name('public.team.squad');

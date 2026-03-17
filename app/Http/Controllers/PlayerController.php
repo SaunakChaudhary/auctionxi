@@ -21,25 +21,19 @@ class PlayerController extends Controller
     // ── PUBLIC: Registration Form ──
     public function publicRegister($code)
     {
-        $tournament = Tournament::where('code', $code)
-            ->firstOrFail();
+        $tournament = Tournament::where('code', $code)->firstOrFail();
+
         if ($tournament->registration_status === 'closed') {
-            return view(
-                'public.registration-closed',
-                compact('tournament')
-            );
+            return view('public.registration-closed', compact('tournament'));
         }
-        return view(
-            'public.player-register',
-            compact('tournament')
-        );
+
+        return view('public.player-register', compact('tournament'));
     }
 
     // ── PUBLIC: Registration Submit ──
     public function publicStore(Request $request, $code)
     {
-        $tournament = Tournament::where('code', $code)
-            ->firstOrFail();
+        $tournament = Tournament::where('code', $code)->firstOrFail();
 
         if ($tournament->registration_status === 'closed') {
             return back()->with('error', 'Registration is closed.');
@@ -61,8 +55,7 @@ class PlayerController extends Controller
 
         $photo = null;
         if ($request->hasFile('photo')) {
-            $photo = $request->file('photo')
-                ->store('player_photos', 'public');
+            $photo = $request->file('photo')->store('player_photos', 'public');
         }
 
         $playerId = $this->generatePlayerId($tournament->id);
@@ -82,7 +75,7 @@ class PlayerController extends Controller
             'experience'    => $request->experience,
             'jersey_number' => $request->jersey_number,
             'base_price'    => $tournament->default_base_price ?? 0,
-            'status'        => 'approved', // AUTO APPROVE
+            'status'        => 'approved',
         ]);
 
         return redirect()->back()->with(
@@ -95,9 +88,7 @@ class PlayerController extends Controller
     public function index($tournamentId)
     {
         $tournament = $this->getTournament($tournamentId);
-
-        // Only show players for THIS tournament
-        $players = Player::where('tournament_id', $tournamentId)
+        $players    = Player::where('tournament_id', $tournamentId)
             ->latest()
             ->get();
 
@@ -107,22 +98,28 @@ class PlayerController extends Controller
     // ── ORGANIZER: Approve ──
     public function approve($tournamentId, $playerId)
     {
-        $tournament = $this->getTournament($tournamentId);
+        $this->getTournament($tournamentId);
+
         $player = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
+
         $player->update(['status' => 'approved']);
+
         return back()->with('success', 'Player approved!');
     }
 
     // ── ORGANIZER: Reject ──
     public function reject($tournamentId, $playerId)
     {
-        $tournament = $this->getTournament($tournamentId);
+        $this->getTournament($tournamentId);
+
         $player = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
+
         $player->update(['status' => 'pending']);
+
         return back()->with('success', 'Player set to pending!');
     }
 
@@ -130,9 +127,10 @@ class PlayerController extends Controller
     public function edit($tournamentId, $playerId)
     {
         $tournament = $this->getTournament($tournamentId);
-        $player = Player::where('id', $playerId)
+        $player     = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
+
         return view('player.edit', compact('tournament', 'player'));
     }
 
@@ -140,7 +138,7 @@ class PlayerController extends Controller
     public function update(Request $request, $tournamentId, $playerId)
     {
         $tournament = $this->getTournament($tournamentId);
-        $player = Player::where('id', $playerId)
+        $player     = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
 
@@ -163,8 +161,7 @@ class PlayerController extends Controller
             if ($player->photo) {
                 Storage::disk('public')->delete($player->photo);
             }
-            $player->photo = $request->file('photo')
-                ->store('player_photos', 'public');
+            $player->photo = $request->file('photo')->store('player_photos', 'public');
         }
 
         $player->update([
@@ -194,6 +191,11 @@ class PlayerController extends Controller
     }
 
     // ── IMPORT: CSV ──
+    // Expected CSV columns (case-insensitive, trimmed):
+    //   REQUIRED : Player Name | Role | Mobile
+    //   OPTIONAL : Photo (Google Drive link) | Email | Age | City |
+    //              Batting Style | Bowling Style | Experience |
+    //              Jersey Number | Base Price
     public function importCsv(Request $request, $tournamentId)
     {
         $tournament = $this->getTournament($tournamentId);
@@ -204,41 +206,133 @@ class PlayerController extends Controller
 
         $file   = $request->file('csv_file');
         $handle = fopen($file->getPathname(), 'r');
-        $header = fgetcsv($handle);
-        $header = array_map('strtolower', array_map('trim', $header));
+
+        // Read and normalise header row
+        $rawHeader = fgetcsv($handle);
+
+        if (!$rawHeader) {
+            fclose($handle);
+            return back()->withErrors(['csv_file' => 'CSV file is empty or unreadable.']);
+        }
+
+        // Normalise: lowercase + trim each header cell
+        $header = array_map(fn($h) => strtolower(trim($h)), $rawHeader);
 
         $imported = 0;
+        $skipped  = 0;
+        $errors   = [];
 
         while (($row = fgetcsv($handle)) !== false) {
+
+            // Skip completely empty rows
+            if (empty(array_filter($row, fn($v) => trim($v) !== ''))) {
+                continue;
+            }
+
+            // Pad row to match header length
             if (count($row) < count($header)) {
                 $row = array_pad($row, count($header), '');
             }
 
+            // Combine header => values
             $data = array_combine($header, $row);
-            $name = trim($data['player name'] ?? $data['name'] ?? '');
-            if (empty($name)) continue;
 
-            $role   = trim($data['role'] ?? 'Batsman');
-            $mobile = trim($data['mobile'] ?? '0000000000');
-            $email  = trim($data['email'] ?? '') ?: null;
+            // ── REQUIRED: Player Name ──
+            // Accept: "player name" or "name"
+            $name = trim(
+                $data['player name'] ??
+                    $data['playername']  ??
+                    $data['name']        ?? ''
+            );
 
-            $imageUrl = trim(
-                $data['image url'] ?? $data['image_url'] ??
-                    $data['photo']     ?? $data['image'] ?? ''
-            ) ?: null;
-
-            if ($imageUrl && str_contains($imageUrl, 'drive.google.com')) {
-                $imageUrl = $this->convertGoogleDriveLink($imageUrl);
+            if ($name === '') {
+                $skipped++;
+                continue;
             }
 
-            $validRoles = [
-                'Batsman',
-                'Bowler',
-                'All Rounder',
-                'Wicket Keeper'
-            ];
-            if (!in_array($role, $validRoles)) $role = 'Batsman';
+            // ── REQUIRED: Role ──
+            // Accept: "role"
+            $role = trim($data['role'] ?? 'Batsman');
+            $validRoles = ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'];
+            if (!in_array($role, $validRoles, true)) {
+                $role = 'Batsman';
+            }
 
+            // ── REQUIRED: Mobile ──
+            // Accept: "mobile" or "phone"
+            $mobile = trim(
+                $data['mobile'] ??
+                    $data['phone']  ?? '0000000000'
+            );
+
+            // ── OPTIONAL: Photo / Drive Link ──
+            // Accept: "photo" or "image url" or "image" or "drive link"
+            // ── OPTIONAL: Photo / Drive Link ──
+            $rawPhoto = trim(
+                $data['photo']      ??
+                    $data['image url']  ??
+                    $data['image_url']  ??
+                    $data['image']      ??
+                    $data['drive link'] ??
+                    $data['drive_link'] ??
+                    $data['photo url']  ??
+                    $data['photo_url']  ?? ''
+            );
+
+            $imageUrl = null;
+            if ($rawPhoto !== '') {
+                if (str_contains($rawPhoto, 'drive.google.com')) {
+                    $imageUrl = $this->convertGoogleDriveLink($rawPhoto);
+                } else {
+                    $imageUrl = $rawPhoto;
+                }
+            }
+            // ── OPTIONAL: Email ──
+            $email = trim($data['email'] ?? '') ?: null;
+
+            // ── OPTIONAL: Age ──
+            $ageRaw = trim($data['age'] ?? '');
+            $age    = (is_numeric($ageRaw) && $ageRaw > 0) ? (int)$ageRaw : null;
+
+            // ── OPTIONAL: City ──
+            $city = trim($data['city'] ?? '') ?: null;
+
+            // ── OPTIONAL: Batting Style ──
+            $battingStyle = trim(
+                $data['batting style'] ??
+                    $data['batting_style'] ??
+                    $data['batting']       ?? ''
+            ) ?: null;
+
+            // ── OPTIONAL: Bowling Style ──
+            $bowlingStyle = trim(
+                $data['bowling style'] ??
+                    $data['bowling_style'] ??
+                    $data['bowling']       ?? ''
+            ) ?: null;
+
+            // ── OPTIONAL: Experience ──
+            $experience = trim($data['experience'] ?? '') ?: null;
+
+            // ── OPTIONAL: Jersey Number ──
+            $jerseyNumber = trim(
+                $data['jersey number'] ??
+                    $data['jersey_number'] ??
+                    $data['jersey']        ?? ''
+            ) ?: null;
+
+            // ── OPTIONAL: Base Price ──
+            $basePriceRaw = trim(
+                $data['base price'] ??
+                    $data['base_price'] ??
+                    $data['baseprice']  ??
+                    $data['price']      ?? ''
+            );
+            $basePrice = is_numeric($basePriceRaw)
+                ? (float) $basePriceRaw
+                : (float) ($tournament->default_base_price ?? 0);
+
+            // Generate unique Player ID for this tournament
             $playerId = $this->generatePlayerId($tournament->id);
 
             Player::create([
@@ -250,43 +344,35 @@ class PlayerController extends Controller
                 'email'         => $email,
                 'photo'         => null,
                 'image_url'     => $imageUrl,
-                'age'           => is_numeric($data['age'] ?? '')
-                    ? (int)$data['age'] : null,
-                'city'          => trim($data['city'] ?? '') ?: null,
-                'batting_style' => trim($data['batting style']
-                    ?? $data['batting_style'] ?? '') ?: null,
-                'bowling_style' => trim($data['bowling style']
-                    ?? $data['bowling_style'] ?? '') ?: null,
-                'experience'    => trim($data['experience'] ?? '') ?: null,
-                'jersey_number' => trim($data['jersey number']
-                    ?? $data['jersey_number'] ?? '') ?: null,
-                'base_price'    => is_numeric($data['base price']
-                    ?? $data['base_price'] ?? '')
-                    ? (float)($data['base price']
-                        ?? $data['base_price'])
-                    : ($tournament->default_base_price ?? 0),
+                'age'           => $age,
+                'city'          => $city,
+                'batting_style' => $battingStyle,
+                'bowling_style' => $bowlingStyle,
+                'experience'    => $experience,
+                'jersey_number' => $jerseyNumber,
+                'base_price'    => $basePrice,
                 'status'        => 'approved',
             ]);
-
             $imported++;
         }
 
         fclose($handle);
 
-        return redirect()->route('player.index', $tournamentId)
-            ->with(
-                'success',
-                "{$imported} players imported!"
-            );
+        $message = "{$imported} player(s) imported successfully!";
+        if ($skipped > 0) {
+            $message .= " ({$skipped} row(s) skipped — missing name.)";
+        }
+
+        return redirect()
+            ->route('player.index', $tournamentId)
+            ->with('success', $message);
     }
 
     // ── HELPER: Generate Unique Player ID per Tournament ──
-    private function generatePlayerId($tournamentId): string
+    private function generatePlayerId(int $tournamentId): string
     {
-        // Lock to prevent race conditions
         $lastPlayer = Player::where('tournament_id', $tournamentId)
             ->orderBy('id', 'desc')
-            ->lockForUpdate()
             ->first();
 
         $newNumber = $lastPlayer
@@ -295,7 +381,7 @@ class PlayerController extends Controller
 
         $playerId = 'PX' . $newNumber;
 
-        // Ensure uniqueness WITHIN this tournament only
+        // Guarantee uniqueness within this tournament
         while (
             Player::where('tournament_id', $tournamentId)
             ->where('player_id', $playerId)
@@ -308,25 +394,40 @@ class PlayerController extends Controller
         return $playerId;
     }
 
-    // ── HELPER: Convert Google Drive Link ──
+    // ── HELPER: Convert any Google Drive link to direct-embed URL ──
+    //
+    // Handles all common Google Drive URL formats:
+    //   1. https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+    //   2. https://drive.google.com/file/d/FILE_ID/view
+    //   3. https://drive.google.com/open?id=FILE_ID
+    //   4. https://drive.google.com/uc?id=FILE_ID
+    //   5. https://drive.google.com/thumbnail?id=FILE_ID
+    //
+    // Output: https://drive.google.com/uc?export=view&id=FILE_ID
+    //
     private function convertGoogleDriveLink(string $url): string
     {
-        if (preg_match(
-            '/\/file\/d\/([a-zA-Z0-9_-]+)/',
-            $url,
-            $matches
-        )) {
-            return 'https://drive.google.com/uc?export=view&id='
-                . $matches[1];
+        $url = trim($url);
+
+        if (!str_contains($url, 'drive.google.com')) {
+            return $url;
         }
-        if (preg_match(
-            '/[?&]id=([a-zA-Z0-9_-]+)/',
-            $url,
-            $matches
-        )) {
-            return 'https://drive.google.com/uc?export=view&id='
-                . $matches[1];
+
+        $fileId = null;
+
+        // Pattern 1: /file/d/{ID}/
+        if (preg_match('#/file/d/([a-zA-Z0-9_-]+)#', $url, $m)) {
+            $fileId = $m[1];
         }
+        // Pattern 2: ?id={ID} or &id={ID}
+        elseif (preg_match('#[?&]id=([a-zA-Z0-9_-]+)#', $url, $m)) {
+            $fileId = $m[1];
+        }
+
+        if ($fileId) {
+            return 'https://lh3.googleusercontent.com/d/' . $fileId . '=w200';
+        }
+
         return $url;
     }
 }

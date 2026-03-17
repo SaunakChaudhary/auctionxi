@@ -124,12 +124,34 @@
                                 </td>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        @if ($result->player->photo)
-                                            <img src="{{ Storage::url($result->player->photo) }}" class="player-avatar"
-                                                alt="{{ $result->player->name }}">
+                                        @php
+                                            $__p = $result->player;
+                                            $__src = playerAvatarSrc($__p);
+                                            $__initial = strtoupper(substr($__p->name ?? '?', 0, 1));
+                                            $__bg = playerAvatarColor($__p->name ?? '');
+                                        @endphp
+                                        @if ($__src)
+                                            <img src="{{ $__src }}" alt="{{ $__p->name }}"
+                                                style="width:38px;height:38px;border-radius:50%;
+                object-fit:cover;flex-shrink:0;
+                border:2px solid #e8eaf0;"
+                                                onerror="this.style.display='none';
+                  this.nextElementSibling.style.display='flex';">
+                                            <div
+                                                style="display:none;width:38px;height:38px;
+                border-radius:50%;background:{{ $__bg }};
+                color:#fff;font-weight:700;font-size:0.8rem;
+                align-items:center;justify-content:center;
+                flex-shrink:0;">
+                                                {{ $__initial }}
+                                            </div>
                                         @else
-                                            <div class="player-avatar-placeholder">
-                                                {{ strtoupper(substr($result->player->name, 0, 1)) }}
+                                            <div
+                                                style="width:38px;height:38px;border-radius:50%;
+                background:{{ $__bg }};color:#fff;font-weight:700;
+                font-size:0.8rem;display:flex;align-items:center;
+                justify-content:center;flex-shrink:0;">
+                                                {{ $__initial }}
                                             </div>
                                         @endif
                                         <span

@@ -534,8 +534,8 @@
 @push('styles')
     <style>
         /* ═══════════════════════════════════════════
-       AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
-       ═══════════════════════════════════════════ */
+                       AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
+                       ═══════════════════════════════════════════ */
 
         /* ── VARIABLES ── */
         :root {
@@ -1911,6 +1911,8 @@
            ════════════════════════════════ */
         function renderFirstPlayer() {
             @if ($firstPlayer)
+
+                // Build player object cleanly
                 const p = {
                     id: {{ $firstPlayer->id }},
                     player_id: "{{ $firstPlayer->player_id }}",
@@ -1928,6 +1930,8 @@
                     photo: "{{ $firstPlayer->photo ?? '' }}",
                     image_url: "{{ $firstPlayer->image_url ?? '' }}",
                 };
+
+                // Render the player card
                 renderPlayer(p);
             @endif
         }
@@ -2029,25 +2033,27 @@
             showState('player');
 
             // Avatar
-            const photo = p.photo ? '/storage/' + p.photo : null;
-            const imageUrl = p.image_url || null;
-            const src = photo || imageUrl;
+            // Avatar — supports photo (local) and image_url (Google Drive lh3)
+            const src = (p.photo && p.photo !== '') ?
+                '/storage/' + p.photo :
+                ((p.image_url && p.image_url !== '') ? p.image_url : null);
+
+            const initial = (p.name || '?').charAt(0).toUpperCase();
 
             if (src) {
                 DOM.avatarImg.style.display = 'block';
                 DOM.avatarPh.style.display = 'none';
                 DOM.avatarPhoto.src = src;
-                DOM.avatarPhoto.onerror = () => {
-                    DOM.avatarImg.style.display = 'none';
+                DOM.avatarPhoto.onerror = function() {
+                    this.style.display = 'none';
                     DOM.avatarPh.style.display = 'flex';
-                    DOM.avatarInitial.textContent = (p.name || '?').charAt(0).toUpperCase();
+                    DOM.avatarInitial.textContent = initial;
                 };
             } else {
                 DOM.avatarImg.style.display = 'none';
                 DOM.avatarPh.style.display = 'flex';
-                DOM.avatarInitial.textContent = (p.name || '?').charAt(0).toUpperCase();
+                DOM.avatarInitial.textContent = initial;
             }
-
             // Name / ID / Role / Status
             DOM.pName.textContent = p.name || '';
             DOM.pIdBadge.textContent = p.player_id || '';
