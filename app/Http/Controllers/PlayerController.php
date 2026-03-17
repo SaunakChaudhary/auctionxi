@@ -55,7 +55,10 @@ class PlayerController extends Controller
 
         $photo = null;
         if ($request->hasFile('photo')) {
-            $photo = $request->file('photo')->store('player_photos', 'public');
+            $photo = \App\Services\CloudinaryService::upload(
+                $request->file('photo'),
+                'auction-xi/players'
+            );
         }
 
         $playerId = $this->generatePlayerId($tournament->id);
@@ -158,10 +161,11 @@ class PlayerController extends Controller
         ]);
 
         if ($request->hasFile('photo')) {
-            if ($player->photo) {
-                Storage::disk('public')->delete($player->photo);
-            }
-            $player->photo = $request->file('photo')->store('player_photos', 'public');
+            \App\Services\CloudinaryService::delete($player->photo);
+            $player->photo = \App\Services\CloudinaryService::upload(
+                $request->file('photo'),
+                'auction-xi/players'
+            );
         }
 
         $player->update([

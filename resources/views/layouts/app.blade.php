@@ -755,8 +755,7 @@
         <nav class="sidebar-nav">
             <div class="nav-section-title">Main</div>
 
-            <a href="{{ route('dashboard') }}"
-                class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+            <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                 <i class="bi bi-grid-fill"></i> Dashboard
             </a>
 
@@ -832,12 +831,12 @@
                 </button>
             </form>
         </nav>
-        
+
         <div class="sidebar-footer">
             <div class="sidebar-user">
                 <div class="avatar">
-                    @if (Auth::user()->profile_photo)
-                        <img src="{{ Storage::url(Auth::user()->profile_photo) }}" alt="">
+                    @if (profilePhotoSrc(Auth::user()))
+                        <img src="{{ profilePhotoSrc(Auth::user()) }}" alt="">
                     @else
                         {{ strtoupper(substr(Auth::user()->name, 0, 1)) }}
                     @endif

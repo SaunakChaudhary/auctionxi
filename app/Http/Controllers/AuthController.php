@@ -27,7 +27,10 @@ class AuthController extends Controller
 
         $photo = null;
         if ($request->hasFile('profile_photo')) {
-            $photo = $request->file('profile_photo')->store('profiles', 'public');
+            $photo = \App\Services\CloudinaryService::upload(
+                $request->file('profile_photo'),
+                'auction-xi/profiles'
+            );
         }
 
         User::create([

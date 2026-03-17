@@ -13,17 +13,17 @@ class TeamController extends Controller
     private function getTournament($tournamentId)
     {
         return Tournament::where('id', $tournamentId)
-                         ->where('user_id', Auth::id())
-                         ->with(['teams', 'players'])
-                         ->firstOrFail();
+            ->where('user_id', Auth::id())
+            ->with(['teams', 'players'])
+            ->firstOrFail();
     }
 
     public function index($tournamentId)
     {
         $tournament = $this->getTournament($tournamentId);
         $teams = Team::where('tournament_id', $tournamentId)
-                     ->withCount('players')
-                     ->get();
+            ->withCount('players')
+            ->get();
         return view('team.index', compact('tournament', 'teams'));
     }
 
@@ -48,8 +48,10 @@ class TeamController extends Controller
 
         $logo = null;
         if ($request->hasFile('logo')) {
-            $logo = $request->file('logo')
-                            ->store('team_logos', 'public');
+            $logo = \App\Services\CloudinaryService::upload(
+                $request->file('logo'),
+                'auction-xi/teams'
+            );
         }
 
         Team::create([
@@ -65,15 +67,15 @@ class TeamController extends Controller
         ]);
 
         return redirect()->route('team.index', $tournamentId)
-                         ->with('success', 'Team created successfully!');
+            ->with('success', 'Team created successfully!');
     }
 
     public function edit($tournamentId, $teamId)
     {
         $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
-                    ->where('tournament_id', $tournamentId)
-                    ->firstOrFail();
+            ->where('tournament_id', $tournamentId)
+            ->firstOrFail();
         return view('team.edit', compact('tournament', 'team'));
     }
 
@@ -81,8 +83,8 @@ class TeamController extends Controller
     {
         $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
-                    ->where('tournament_id', $tournamentId)
-                    ->firstOrFail();
+            ->where('tournament_id', $tournamentId)
+            ->firstOrFail();
 
         $request->validate([
             'name'         => 'required|string|max:255',
@@ -94,11 +96,11 @@ class TeamController extends Controller
         ]);
 
         if ($request->hasFile('logo')) {
-            if ($team->logo) {
-                Storage::disk('public')->delete($team->logo);
-            }
-            $team->logo = $request->file('logo')
-                                  ->store('team_logos', 'public');
+            \App\Services\CloudinaryService::delete($team->logo);
+            $team->logo = \App\Services\CloudinaryService::upload(
+                $request->file('logo'),
+                'auction-xi/teams'
+            );
         }
 
         $team->update([
@@ -111,32 +113,30 @@ class TeamController extends Controller
         ]);
 
         return redirect()->route('team.index', $tournamentId)
-                         ->with('success', 'Team updated successfully!');
+            ->with('success', 'Team updated successfully!');
     }
 
     public function destroy($tournamentId, $teamId)
     {
         $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
-                    ->where('tournament_id', $tournamentId)
-                    ->firstOrFail();
+            ->where('tournament_id', $tournamentId)
+            ->firstOrFail();
 
-        if ($team->logo) {
-            Storage::disk('public')->delete($team->logo);
-        }
+        \App\Services\CloudinaryService::delete($team->logo);
         $team->delete();
 
         return redirect()->route('team.index', $tournamentId)
-                         ->with('success', 'Team deleted!');
+            ->with('success', 'Team deleted!');
     }
 
     public function squad($tournamentId, $teamId)
     {
         $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
-                    ->where('tournament_id', $tournamentId)
-                    ->with('players')
-                    ->firstOrFail();
+            ->where('tournament_id', $tournamentId)
+            ->with('players')
+            ->firstOrFail();
         return view('team.squad', compact('tournament', 'team'));
     }
 }
