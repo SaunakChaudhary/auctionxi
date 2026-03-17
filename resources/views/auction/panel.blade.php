@@ -181,13 +181,23 @@
                         {{-- Profile --}}
                         <div class="ap-profile">
                             <div class="ap-avatar-wrap">
-                                <div id="avatarImg" style="display:none;">
-                                    <img id="avatarPhoto" src="" class="ap-avatar-img" alt="Player">
+                                @php
+                                    $__firstAvatarSrc = $firstPlayer ? playerAvatarSrc($firstPlayer) : null;
+                                    $__firstInitial = $firstPlayer ? strtoupper(substr($firstPlayer->name, 0, 1)) : '';
+                                    $__firstBg = $firstPlayer ? playerAvatarColor($firstPlayer->name) : '#6c3fc5';
+                                @endphp
+
+                                <div id="avatarImg" style="{{ $__firstAvatarSrc ? '' : 'display:none;' }}">
+                                    <img id="avatarPhoto" src="{{ $__firstAvatarSrc ?? '' }}" class="ap-avatar-img"
+                                        alt="Player"
+                                        onerror="this.parentElement.style.display='none';
+                  document.getElementById('avatarPlaceholder')
+                  .style.display='flex';">
                                 </div>
-                                <div id="avatarPlaceholder" class="ap-avatar-placeholder">
-                                    <span id="avatarInitial">
-                                        {{ $firstPlayer ? strtoupper(substr($firstPlayer->name, 0, 1)) : '' }}
-                                    </span>
+                                <div id="avatarPlaceholder" class="ap-avatar-placeholder"
+                                    style="{{ $__firstAvatarSrc ? 'display:none;' : '' }}
+            background:{{ $__firstBg }};">
+                                    <span id="avatarInitial">{{ $__firstInitial }}</span>
                                 </div>
                             </div>
                             <div class="ap-profile-info">
@@ -301,7 +311,7 @@
                                             data-team-name="{{ addslashes($team->name) }}"
                                             data-remaining="{{ $team->budget - $team->spent }}">
                                             @if ($team->logo)
-                                                <img src="{{ teamLogoSrc($team)}}" class="ap-team-logo"
+                                                <img src="{{ teamLogoSrc($team) }}" class="ap-team-logo"
                                                     alt="{{ $team->name }}">
                                             @else
                                                 <div class="ap-team-logo-placeholder">
@@ -490,8 +500,7 @@
                             <div class="ap-team-card" data-edit-team-id="{{ $team->id }}"
                                 data-team-name="{{ addslashes($team->name) }}">
                                 @if ($team->logo)
-                                    <img src="{{teamLogoSrc($team) }}" class="ap-team-logo"
-                                        alt="{{ $team->name }}">
+                                    <img src="{{ teamLogoSrc($team) }}" class="ap-team-logo" alt="{{ $team->name }}">
                                 @else
                                     <div class="ap-team-logo-placeholder">
                                         {{ strtoupper(substr($team->name, 0, 1)) }}
@@ -534,8 +543,8 @@
 @push('styles')
     <style>
         /* ═══════════════════════════════════════════
-                       AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
-                       ═══════════════════════════════════════════ */
+                           AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
+                           ═══════════════════════════════════════════ */
 
         /* ── VARIABLES ── */
         :root {
