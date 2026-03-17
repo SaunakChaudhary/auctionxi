@@ -51,7 +51,6 @@
             </div>
         </div>
     </div>
-
     {{-- Quick Actions --}}
     <div class="row g-3 mb-4">
         <div class="col-12">
@@ -64,8 +63,9 @@
                     <div class="row g-3">
                         <div class="col-6 col-md-3">
                             <a href="{{ route('tournament.create') }}"
-                                class="d-flex flex-column align-items-center justify-content-center
-                                  p-3 rounded-3 text-decoration-none gap-2
+                                class="d-flex flex-column align-items-center
+                                  justify-content-center p-3 rounded-3
+                                  text-decoration-none gap-2
                                   quick-action-btn">
                                 <div class="quick-icon"
                                     style="background:linear-gradient(135deg,
@@ -78,8 +78,9 @@
                         </div>
                         <div class="col-6 col-md-3">
                             <a href="{{ route('tournament.index') }}"
-                                class="d-flex flex-column align-items-center justify-content-center
-                                  p-3 rounded-3 text-decoration-none gap-2
+                                class="d-flex flex-column align-items-center
+                                  justify-content-center p-3 rounded-3
+                                  text-decoration-none gap-2
                                   quick-action-btn">
                                 <div class="quick-icon"
                                     style="background:linear-gradient(135deg,
@@ -91,48 +92,62 @@
                             </a>
                         </div>
                         <div class="col-6 col-md-3">
-                            @if ($tournaments->count() > 0)
-                                <a href="{{ route('player.index', $tournaments->first()->id) }}"
-                                    class="d-flex flex-column align-items-center justify-content-center
-                                  p-3 rounded-3 text-decoration-none gap-2
+                            <a href="{{ route('tournament.index') }}"
+                                class="d-flex flex-column align-items-center
+                                  justify-content-center p-3 rounded-3
+                                  text-decoration-none gap-2
                                   quick-action-btn">
-                                @else
-                                    <a href="{{ route('tournament.create') }}"
-                                        class="d-flex flex-column align-items-center justify-content-center
-                                  p-3 rounded-3 text-decoration-none gap-2
-                                  quick-action-btn">
-                            @endif
-                            <div class="quick-icon"
-                                style="background:linear-gradient(135deg,
+                                <div class="quick-icon"
+                                    style="background:linear-gradient(135deg,
                                         rgba(16,185,129,0.1),
                                         rgba(52,211,153,0.15));">
-                                <i class="bi bi-person-badge-fill" style="color:#059669;"></i>
-                            </div>
-                            <span>Players</span>
+                                    <i class="bi bi-person-badge-fill" style="color:#059669;"></i>
+                                </div>
+                                <span>Manage Players</span>
                             </a>
                         </div>
                         <div class="col-6 col-md-3">
-                            @if ($tournaments->count() > 0)
-                                <a href="{{ route('auction.panel', $tournaments->first()->id) }}"
-                                    class="d-flex flex-column align-items-center justify-content-center
-                                  p-3 rounded-3 text-decoration-none gap-2
+                            <a href="{{ route('tournament.index') }}"
+                                class="d-flex flex-column align-items-center
+                                  justify-content-center p-3 rounded-3
+                                  text-decoration-none gap-2
                                   quick-action-btn">
-                                @else
-                                    <a href="{{ route('tournament.create') }}"
-                                        class="d-flex flex-column align-items-center justify-content-center
-                                  p-3 rounded-3 text-decoration-none gap-2
-                                  quick-action-btn">
-                            @endif
-                            <div class="quick-icon"
-                                style="background:linear-gradient(135deg,
+                                <div class="quick-icon"
+                                    style="background:linear-gradient(135deg,
                                         rgba(239,68,68,0.1),
                                         rgba(252,165,165,0.15));">
-                                <i class="bi bi-broadcast" style="color:#dc2626;"></i>
-                            </div>
-                            <span>Auction Panel</span>
+                                    <i class="bi bi-broadcast" style="color:#dc2626;"></i>
+                                </div>
+                                <span>Go to Auction</span>
                             </a>
                         </div>
                     </div>
+
+                    {{-- If tournaments exist show them as quick links --}}
+                    @if ($tournaments->count() > 0)
+                        <div class="mt-3 pt-3" style="border-top:1.5px solid #f0f2f8;">
+                            <div
+                                style="font-size:0.75rem;font-weight:600;
+                                color:#9ca3af;text-transform:uppercase;
+                                letter-spacing:1px;margin-bottom:10px;">
+                                Jump to Tournament
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap">
+                                @foreach ($tournaments as $t)
+                                    <a href="{{ route('tournament.show', $t->id) }}" class="btn btn-sm"
+                                        style="background:#f0f2f8;color:#374151;
+                                  border-radius:8px;font-weight:600;
+                                  font-size:0.78rem;border:1.5px solid
+                                  #e8eaf0;">
+                                        🏆 {{ Str::limit($t->name, 20) }}
+                                        <span style="color:#9ca3af;">
+                                            ({{ $t->code }})
+                                        </span>
+                                    </a>
+                                @endforeach
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>
@@ -245,8 +260,8 @@
                                                 class="btn btn-sm btn-warning" title="Auction Panel">
                                                 <i class="bi bi-broadcast"></i>
                                             </a>
-                                            <a href="{{ route('public.live', $tournament->code) }}"
-                                                target="_blank" class="btn btn-sm btn-success" title="Live View">
+                                            <a href="{{ route('public.live', $tournament->code) }}" target="_blank"
+                                                class="btn btn-sm btn-success" title="Live View">
                                                 <i class="bi bi-eye-fill"></i>
                                             </a>
                                         </div>

@@ -755,7 +755,8 @@
         <nav class="sidebar-nav">
             <div class="nav-section-title">Main</div>
 
-            <a href="{{ route('dashboard') }}" class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+            <a href="{{ route('dashboard') }}"
+                class="nav-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
                 <i class="bi bi-grid-fill"></i> Dashboard
             </a>
 
@@ -770,17 +771,41 @@
                 <i class="bi bi-plus-circle-fill"></i> Create Tournament
             </a>
 
-            @if (isset($tournament))
-                <div class="nav-section-title">Current Tournament</div>
+            {{-- Only show tournament-specific links when inside a tournament --}}
+            @if (isset($tournament) && $tournament->user_id === Auth::id())
+                <div class="nav-section-title">
+                    <span
+                        style="white-space:nowrap;overflow:hidden;
+                     text-overflow:ellipsis;display:block;
+                     max-width:180px;"
+                        title="{{ $tournament->name }}">
+                        {{ Str::limit($tournament->name, 20) }}
+                    </span>
+                </div>
+
+                <a href="{{ route('tournament.show', $tournament->id) }}"
+                    class="nav-link {{ request()->routeIs('tournament.show') ? 'active' : '' }}">
+                    <i class="bi bi-info-circle-fill"></i> Overview
+                </a>
 
                 <a href="{{ route('team.index', $tournament->id) }}"
                     class="nav-link {{ request()->routeIs('team.*') ? 'active' : '' }}">
                     <i class="bi bi-people-fill"></i> Teams
+                    <span class="badge ms-auto"
+                        style="background:rgba(255,255,255,0.15);
+                     color:#fff;font-size:0.65rem;">
+                        {{ $tournament->teams->count() }}
+                    </span>
                 </a>
 
                 <a href="{{ route('player.index', $tournament->id) }}"
                     class="nav-link {{ request()->routeIs('player.*') ? 'active' : '' }}">
                     <i class="bi bi-person-badge-fill"></i> Players
+                    <span class="badge ms-auto"
+                        style="background:rgba(255,255,255,0.15);
+                     color:#fff;font-size:0.65rem;">
+                        {{ $tournament->players->count() }}
+                    </span>
                 </a>
 
                 <a href="{{ route('player.import', $tournament->id) }}" class="nav-link">
@@ -793,7 +818,7 @@
                 </a>
 
                 <a href="{{ route('auction.results', $tournament->id) }}" class="nav-link">
-                    <i class="bi bi-bar-chart-fill"></i> Auction Results
+                    <i class="bi bi-bar-chart-fill"></i> Results
                 </a>
             @endif
 
@@ -801,12 +826,13 @@
 
             <form method="POST" action="{{ route('logout') }}">
                 @csrf
-                <button type="submit" class="nav-link w-100 border-0 bg-transparent text-start">
+                <button type="submit" class="nav-link w-100 border-0
+                       bg-transparent text-start">
                     <i class="bi bi-box-arrow-left"></i> Logout
                 </button>
             </form>
         </nav>
-
+        
         <div class="sidebar-footer">
             <div class="sidebar-user">
                 <div class="avatar">

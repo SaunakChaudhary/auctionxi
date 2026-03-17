@@ -10,20 +10,37 @@ use Illuminate\Support\Facades\Storage;
 
 class PlayerController extends Controller
 {
-    // Public registration form
-    public function publicRegister($code)
+    private function getTournament($tournamentId)
     {
-        $tournament = Tournament::where('code', $code)->firstOrFail();
-        if ($tournament->registration_status === 'closed') {
-            return view('public.registration-closed', compact('tournament'));
-        }
-        return view('public.player-register', compact('tournament'));
+        return Tournament::where('id', $tournamentId)
+            ->where('user_id', Auth::id())
+            ->with(['teams', 'players'])
+            ->firstOrFail();
     }
 
-    // Public registration submit
+    // ── PUBLIC: Registration Form ──
+    public function publicRegister($code)
+    {
+        $tournament = Tournament::where('code', $code)
+            ->firstOrFail();
+        if ($tournament->registration_status === 'closed') {
+            return view(
+                'public.registration-closed',
+                compact('tournament')
+            );
+        }
+        return view(
+            'public.player-register',
+            compact('tournament')
+        );
+    }
+
+    // ── PUBLIC: Registration Submit ──
     public function publicStore(Request $request, $code)
     {
-        $tournament = Tournament::where('code', $code)->firstOrFail();
+        $tournament = Tournament::where('code', $code)
+            ->firstOrFail();
+
         if ($tournament->registration_status === 'closed') {
             return back()->with('error', 'Registration is closed.');
         }
@@ -34,24 +51,21 @@ class PlayerController extends Controller
             'mobile'        => 'required|string|max:15',
             'email'         => 'nullable|email',
             'photo'         => 'nullable|image|max:2048',
-            'age'           => 'nullable|integer',
+            'age'           => 'nullable|integer|min:10|max:60',
             'city'          => 'nullable|string|max:100',
             'batting_style' => 'nullable|string|max:100',
             'bowling_style' => 'nullable|string|max:100',
             'experience'    => 'nullable|string|max:100',
-            'jersey_number' => 'nullable|string|max:10'
+            'jersey_number' => 'nullable|string|max:10',
         ]);
 
         $photo = null;
         if ($request->hasFile('photo')) {
-            $photo = $request->file('photo')->store('player_photos', 'public');
+            $photo = $request->file('photo')
+                ->store('player_photos', 'public');
         }
 
-        // Generate unique Player ID
-        $lastPlayer = Player::where('tournament_id', $tournament->id)
-            ->orderBy('id', 'desc')->first();
-        $number    = $lastPlayer ? (intval(substr($lastPlayer->player_id, 2)) + 1) : 1001;
-        $playerId  = 'PX' . $number;
+        $playerId = $this->generatePlayerId($tournament->id);
 
         Player::create([
             'tournament_id' => $tournament->id,
@@ -67,29 +81,33 @@ class PlayerController extends Controller
             'bowling_style' => $request->bowling_style,
             'experience'    => $request->experience,
             'jersey_number' => $request->jersey_number,
-            'base_price'    => $request->base_price ?? 0,
-            'status'        => 'pending',
+            'base_price'    => $tournament->default_base_price ?? 0,
+            'status'        => 'approved', // AUTO APPROVE
         ]);
 
-        return redirect()->back()->with('success', 'Registration successful! Your Player ID is: ' . $playerId);
+        return redirect()->back()->with(
+            'success',
+            'Registration successful! Your Player ID is: ' . $playerId
+        );
     }
 
-    // Organizer: view all players
+    // ── ORGANIZER: Player List ──
     public function index($tournamentId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
-        $players = $tournament->players()->latest()->get();
+        $tournament = $this->getTournament($tournamentId);
+
+        // Only show players for THIS tournament
+        $players = Player::where('tournament_id', $tournamentId)
+            ->latest()
+            ->get();
+
         return view('player.index', compact('tournament', 'players'));
     }
 
-    // Organizer: approve player
+    // ── ORGANIZER: Approve ──
     public function approve($tournamentId, $playerId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $player = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
@@ -97,36 +115,31 @@ class PlayerController extends Controller
         return back()->with('success', 'Player approved!');
     }
 
-    // Organizer: reject player
+    // ── ORGANIZER: Reject ──
     public function reject($tournamentId, $playerId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $player = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
         $player->update(['status' => 'pending']);
-        return back()->with('success', 'Player rejected!');
+        return back()->with('success', 'Player set to pending!');
     }
 
-    // Organizer: edit player
+    // ── ORGANIZER: Edit Form ──
     public function edit($tournamentId, $playerId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $player = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
         return view('player.edit', compact('tournament', 'player'));
     }
 
+    // ── ORGANIZER: Update ──
     public function update(Request $request, $tournamentId, $playerId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $player = Player::where('id', $playerId)
             ->where('tournament_id', $tournamentId)
             ->firstOrFail();
@@ -147,8 +160,11 @@ class PlayerController extends Controller
         ]);
 
         if ($request->hasFile('photo')) {
-            if ($player->photo) Storage::disk('public')->delete($player->photo);
-            $player->photo = $request->file('photo')->store('player_photos', 'public');
+            if ($player->photo) {
+                Storage::disk('public')->delete($player->photo);
+            }
+            $player->photo = $request->file('photo')
+                ->store('player_photos', 'public');
         }
 
         $player->update([
@@ -170,20 +186,17 @@ class PlayerController extends Controller
             ->with('success', 'Player updated!');
     }
 
-    // CSV Import
+    // ── IMPORT: Form ──
     public function importForm($tournamentId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         return view('player.import', compact('tournament'));
     }
 
+    // ── IMPORT: CSV ──
     public function importCsv(Request $request, $tournamentId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
 
         $request->validate([
             'csv_file' => 'required|file|mimes:csv,txt|max:5120',
@@ -202,7 +215,6 @@ class PlayerController extends Controller
             }
 
             $data = array_combine($header, $row);
-
             $name = trim($data['player name'] ?? $data['name'] ?? '');
             if (empty($name)) continue;
 
@@ -210,27 +222,24 @@ class PlayerController extends Controller
             $mobile = trim($data['mobile'] ?? '0000000000');
             $email  = trim($data['email'] ?? '') ?: null;
 
-            // Image URL (Google Drive or any URL)
             $imageUrl = trim(
                 $data['image url'] ?? $data['image_url'] ??
-                    $data['photo'] ?? $data['image'] ?? ''
+                    $data['photo']     ?? $data['image'] ?? ''
             ) ?: null;
 
-            // Convert Google Drive share link to direct link
             if ($imageUrl && str_contains($imageUrl, 'drive.google.com')) {
                 $imageUrl = $this->convertGoogleDriveLink($imageUrl);
             }
 
-            $validRoles = ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'];
+            $validRoles = [
+                'Batsman',
+                'Bowler',
+                'All Rounder',
+                'Wicket Keeper'
+            ];
             if (!in_array($role, $validRoles)) $role = 'Batsman';
 
-            // Generate Player ID
-            $lastPlayer = Player::where('tournament_id', $tournament->id)
-                ->orderBy('id', 'desc')->first();
-            $number    = $lastPlayer
-                ? (intval(substr($lastPlayer->player_id, 2)) + 1)
-                : 1001;
-            $playerId  = 'PX' . $number;
+            $playerId = $this->generatePlayerId($tournament->id);
 
             Player::create([
                 'tournament_id' => $tournament->id,
@@ -254,7 +263,8 @@ class PlayerController extends Controller
                 'base_price'    => is_numeric($data['base price']
                     ?? $data['base_price'] ?? '')
                     ? (float)($data['base price']
-                        ?? $data['base_price']) : 0,
+                        ?? $data['base_price'])
+                    : ($tournament->default_base_price ?? 0),
                 'status'        => 'approved',
             ]);
 
@@ -264,24 +274,59 @@ class PlayerController extends Controller
         fclose($handle);
 
         return redirect()->route('player.index', $tournamentId)
-            ->with('success', "{$imported} players imported!");
+            ->with(
+                'success',
+                "{$imported} players imported!"
+            );
     }
 
-    /**
-     * Convert Google Drive share link to direct viewable link
-     */
+    // ── HELPER: Generate Unique Player ID per Tournament ──
+    private function generatePlayerId($tournamentId): string
+    {
+        // Lock to prevent race conditions
+        $lastPlayer = Player::where('tournament_id', $tournamentId)
+            ->orderBy('id', 'desc')
+            ->lockForUpdate()
+            ->first();
+
+        $newNumber = $lastPlayer
+            ? ((int) substr($lastPlayer->player_id, 2)) + 1
+            : 1001;
+
+        $playerId = 'PX' . $newNumber;
+
+        // Ensure uniqueness WITHIN this tournament only
+        while (
+            Player::where('tournament_id', $tournamentId)
+            ->where('player_id', $playerId)
+            ->exists()
+        ) {
+            $newNumber++;
+            $playerId = 'PX' . $newNumber;
+        }
+
+        return $playerId;
+    }
+
+    // ── HELPER: Convert Google Drive Link ──
     private function convertGoogleDriveLink(string $url): string
     {
-        // Format: https://drive.google.com/file/d/FILE_ID/view
-        if (preg_match('/\/file\/d\/([a-zA-Z0-9_-]+)/', $url, $matches)) {
-            return 'https://drive.google.com/uc?export=view&id=' . $matches[1];
+        if (preg_match(
+            '/\/file\/d\/([a-zA-Z0-9_-]+)/',
+            $url,
+            $matches
+        )) {
+            return 'https://drive.google.com/uc?export=view&id='
+                . $matches[1];
         }
-
-        // Format: https://drive.google.com/open?id=FILE_ID
-        if (preg_match('/[?&]id=([a-zA-Z0-9_-]+)/', $url, $matches)) {
-            return 'https://drive.google.com/uc?export=view&id=' . $matches[1];
+        if (preg_match(
+            '/[?&]id=([a-zA-Z0-9_-]+)/',
+            $url,
+            $matches
+        )) {
+            return 'https://drive.google.com/uc?export=view&id='
+                . $matches[1];
         }
-
         return $url;
     }
 }

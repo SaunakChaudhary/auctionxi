@@ -10,28 +10,32 @@ use Illuminate\Support\Facades\Storage;
 
 class TeamController extends Controller
 {
+    private function getTournament($tournamentId)
+    {
+        return Tournament::where('id', $tournamentId)
+                         ->where('user_id', Auth::id())
+                         ->with(['teams', 'players'])
+                         ->firstOrFail();
+    }
+
     public function index($tournamentId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
-        $teams = $tournament->teams()->withCount('players')->get();
+        $tournament = $this->getTournament($tournamentId);
+        $teams = Team::where('tournament_id', $tournamentId)
+                     ->withCount('players')
+                     ->get();
         return view('team.index', compact('tournament', 'teams'));
     }
 
     public function create($tournamentId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         return view('team.create', compact('tournament'));
     }
 
     public function store(Request $request, $tournamentId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
 
         $request->validate([
             'name'         => 'required|string|max:255',
@@ -44,7 +48,8 @@ class TeamController extends Controller
 
         $logo = null;
         if ($request->hasFile('logo')) {
-            $logo = $request->file('logo')->store('team_logos', 'public');
+            $logo = $request->file('logo')
+                            ->store('team_logos', 'public');
         }
 
         Team::create([
@@ -65,9 +70,7 @@ class TeamController extends Controller
 
     public function edit($tournamentId, $teamId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
                     ->where('tournament_id', $tournamentId)
                     ->firstOrFail();
@@ -76,9 +79,7 @@ class TeamController extends Controller
 
     public function update(Request $request, $tournamentId, $teamId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
                     ->where('tournament_id', $tournamentId)
                     ->firstOrFail();
@@ -93,8 +94,11 @@ class TeamController extends Controller
         ]);
 
         if ($request->hasFile('logo')) {
-            if ($team->logo) Storage::disk('public')->delete($team->logo);
-            $team->logo = $request->file('logo')->store('team_logos', 'public');
+            if ($team->logo) {
+                Storage::disk('public')->delete($team->logo);
+            }
+            $team->logo = $request->file('logo')
+                                  ->store('team_logos', 'public');
         }
 
         $team->update([
@@ -112,23 +116,23 @@ class TeamController extends Controller
 
     public function destroy($tournamentId, $teamId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
                     ->where('tournament_id', $tournamentId)
                     ->firstOrFail();
-        if ($team->logo) Storage::disk('public')->delete($team->logo);
+
+        if ($team->logo) {
+            Storage::disk('public')->delete($team->logo);
+        }
         $team->delete();
+
         return redirect()->route('team.index', $tournamentId)
                          ->with('success', 'Team deleted!');
     }
 
     public function squad($tournamentId, $teamId)
     {
-        $tournament = Tournament::where('id', $tournamentId)
-                                ->where('user_id', Auth::id())
-                                ->firstOrFail();
+        $tournament = $this->getTournament($tournamentId);
         $team = Team::where('id', $teamId)
                     ->where('tournament_id', $tournamentId)
                     ->with('players')
