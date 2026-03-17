@@ -31,7 +31,7 @@
     $bg = $colors[$initial] ?? '#6c3fc5';
     $src = null;
     if (!empty($player->photo)) {
-        $src = Storage::url($player->photo);
+        $src = teamLogoSrc($player);
     } elseif (!empty($player->image_url)) {
         $src = $player->image_url;
     }

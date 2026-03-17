@@ -184,11 +184,11 @@
                                 <td>
                                     @if ($result->team)
                                         <div class="d-flex align-items-center gap-2">
-                                            @if ($result->team->logo)
-                                                <img src="{{ Storage::url($result->team->logo) }}"
+                                            @if (teamLogoSrc($result->team))
+                                                <img src="{{ teamLogoSrc($result->team) }}"
                                                     style="width:28px;height:28px;
-                                        border-radius:6px;
-                                        object-fit:cover;">
+            border-radius:6px;
+            object-fit:cover;">
                                             @else
                                                 <div
                                                     style="width:28px;height:28px;
@@ -275,7 +275,7 @@
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
                                         @if ($team->logo)
-                                            <img src="{{ Storage::url($team->logo) }}" class="team-logo"
+                                            <img src="{{ teamLogoSrc($team) }}" class="team-logo"
                                                 style="width:36px;height:36px;">
                                         @else
                                             <div class="team-logo-placeholder"

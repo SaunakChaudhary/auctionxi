@@ -168,7 +168,7 @@
                             </div>
                             <div class="col-md-6 d-flex align-items-center gap-3">
                                 @if ($player->photo)
-                                    <img src="{{ Storage::url($player->photo) }}"
+                                    <img src="{{ teamLogoSrc($player) }}"
                                         style="width:56px;height:56px;
                                         border-radius:50%;object-fit:cover;
                                         border:2px solid #e8eaf0;"

@@ -197,7 +197,7 @@
                                             @if ($r->team)
                                                 <div class="d-flex align-items-center gap-2">
                                                     @if ($r->team->logo)
-                                                        <img src="{{ Storage::url($r->team->logo) }}"
+                                                        <img src="{{ teamLogoSrc($r->team)}}"
                                                             style="width:24px;height:24px;
                                                 border-radius:4px;
                                                 object-fit:cover;">
@@ -264,7 +264,7 @@
                                 style="text-decoration:none;border-color:#f1f5f9;">
                                 <div class="d-flex align-items-center gap-3">
                                     @if ($team->logo)
-                                        <img src="{{ Storage::url($team->logo) }}"
+                                        <img src="{{ teamLogoSrc($team) }}"
                                             style="width:40px;height:40px;
                                     border-radius:8px;object-fit:cover;
                                     border:1px solid var(--border);">
@@ -397,7 +397,7 @@
                 };
 
                 const photoHtml = player.photo ?
-                    `<img src="/storage/${player.photo}"
+                    `<img src="${player.photo}"
                         style="width:52px;height:52px;border-radius:8px;
                                object-fit:cover;border:1px solid var(--border);">` :
                     player.image_url ?

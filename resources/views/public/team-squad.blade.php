@@ -22,7 +22,7 @@
         <div class="card-body p-4 position-relative">
             <div class="d-flex align-items-center gap-4 flex-wrap">
                 @if ($team->logo)
-                    <img src="{{ Storage::url($team->logo) }}"
+                    <img src="{{ teamLogoSrc($team) }}"
                         style="width:80px;height:80px;border-radius:20px;
                         object-fit:cover;
                         border:3px solid rgba(255,255,255,0.3);">

@@ -36,11 +36,11 @@
         <div class="card-body p-4 position-relative">
             <div class="row align-items-center g-3">
                 <div class="col-auto">
-                    @if ($team->logo)
-                        <img src="{{ Storage::url($team->logo) }}" alt="{{ $team->name }}"
+                    @if (teamLogoSrc($team))
+                        <img src="{{ teamLogoSrc($team) }}" alt="{{ $team->name }}"
                             style="width:80px;height:80px;border-radius:20px;
-                            object-fit:cover;
-                            border:3px solid rgba(255,255,255,0.3);">
+            object-fit:cover;
+            border:3px solid rgba(255,255,255,0.3);">
                     @else
                         <div
                             style="width:80px;height:80px;border-radius:20px;

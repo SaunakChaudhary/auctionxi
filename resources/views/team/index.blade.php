@@ -43,8 +43,8 @@
                         <div class="card-body pb-0">
                             <div class="d-flex align-items-start gap-3 mb-3">
                                 {{-- Logo --}}
-                                @if ($team->logo)
-                                    <img src="{{ Storage::url($team->logo) }}" alt="{{ $team->name }}" class="team-logo">
+                                @if (teamLogoSrc($team))
+                                    <img src="{{ teamLogoSrc($team) }}" alt="{{ $team->name }}" class="team-logo">
                                 @else
                                     <div class="team-logo-placeholder">
                                         {{ strtoupper(substr($team->name, 0, 1)) }}
@@ -138,8 +138,7 @@
                                     class="btn btn-sm btn-outline-primary flex-fill">
                                     <i class="bi bi-pencil-fill me-1"></i>Edit
                                 </a>
-                                <form method="POST"
-                                    action="{{ route('team.destroy', [$tournament->id, $team->id]) }}"
+                                <form method="POST" action="{{ route('team.destroy', [$tournament->id, $team->id]) }}"
                                     onsubmit="return confirm(
                               'Delete {{ $team->name }}? This cannot be undone.')">
                                     @csrf @method('DELETE')

@@ -49,7 +49,7 @@
                                         p-3 rounded-3"
                                         style="background:#f8f9ff;
                                         border:1.5px solid #e8eaf0;">
-                                        <img src="{{ Storage::url($team->logo) }}" alt="{{ $team->name }}"
+                                        <img src="{{ teamLogoSrc($team) }}" alt="{{ $team->name }}"
                                             style="width:56px;height:56px;
                                             border-radius:12px;
                                             object-fit:cover;">

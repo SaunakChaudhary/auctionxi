@@ -301,7 +301,7 @@
                                             data-team-name="{{ addslashes($team->name) }}"
                                             data-remaining="{{ $team->budget - $team->spent }}">
                                             @if ($team->logo)
-                                                <img src="{{ Storage::url($team->logo) }}" class="ap-team-logo"
+                                                <img src="{{ teamLogoSrc($team)}}" class="ap-team-logo"
                                                     alt="{{ $team->name }}">
                                             @else
                                                 <div class="ap-team-logo-placeholder">
@@ -490,7 +490,7 @@
                             <div class="ap-team-card" data-edit-team-id="{{ $team->id }}"
                                 data-team-name="{{ addslashes($team->name) }}">
                                 @if ($team->logo)
-                                    <img src="{{ Storage::url($team->logo) }}" class="ap-team-logo"
+                                    <img src="{{teamLogoSrc($team) }}" class="ap-team-logo"
                                         alt="{{ $team->name }}">
                                 @else
                                     <div class="ap-team-logo-placeholder">
