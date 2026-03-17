@@ -425,11 +425,28 @@
                 </div>
                 <div class="ap-players-list">
                     @if ($players->count() > 0)
-                        @foreach ($players as $p)
-                            <div class="ap-player-item" data-pid="{{ $p->player_id }}">
-                                <div class="ap-player-item-avatar">
-                                    {{ strtoupper(substr($p->name, 0, 1)) }}
-                                </div>
+                       @foreach ($players as $p)
+@php
+    $__pSrc = playerAvatarSrc($p);
+    $__pBg  = playerAvatarColor($p->name ?? '');
+@endphp
+<div class="ap-player-item" data-pid="{{ $p->player_id }}">
+    @if($__pSrc)
+        <img src="{{ $__pSrc }}"
+             style="width:32px;height:32px;border-radius:7px;
+                    object-fit:cover;flex-shrink:0;"
+             onerror="this.style.display='none';
+                      this.nextElementSibling.style.display='flex';">
+        <div class="ap-player-item-avatar"
+             style="display:none;background:{{ $__pBg }};">
+            {{ strtoupper(substr($p->name, 0, 1)) }}
+        </div>
+    @else
+        <div class="ap-player-item-avatar"
+             style="background:{{ $__pBg }};">
+            {{ strtoupper(substr($p->name, 0, 1)) }}
+        </div>
+    @endif
                                 <div class="ap-player-item-info">
                                     <div class="ap-player-item-name">
                                         {{ $p->name }}
@@ -2044,7 +2061,7 @@
             // Avatar
             // Avatar — supports photo (local) and image_url (Google Drive lh3)
             const src = (p.photo && p.photo !== '') ?
-                '/storage/' + p.photo :
+                p.photo :
                 ((p.image_url && p.image_url !== '') ? p.image_url : null);
 
             const initial = (p.name || '?').charAt(0).toUpperCase();
