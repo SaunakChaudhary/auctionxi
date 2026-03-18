@@ -80,12 +80,68 @@ Route::middleware('auth')->group(function () {
         Route::post('/update-status',          [AuctionController::class, 'updateStatus'])->name('updateStatus');
         Route::get('/results',                 [AuctionController::class, 'results'])->name('results');
     });
+
+    Route::delete(
+        '/tournament/{tournamentId}/players/{playerId}',
+        [App\Http\Controllers\PlayerController::class, 'destroy']
+    )
+        ->name('player.destroy');
+
+    // Delete ALL players
+    Route::delete(
+        '/tournament/{tournamentId}/players',
+        [App\Http\Controllers\PlayerController::class, 'destroyAll']
+    )
+        ->name('player.destroyAll');
+
+    // Reorder player (move up/down)
+    Route::post(
+        '/tournament/{tournamentId}/players/reorder',
+        [App\Http\Controllers\PlayerController::class, 'reorder']
+    )
+        ->name('player.reorder');
 });
 
 // ─────────────────────────────────────────
 // PUBLIC ROUTES (no login required)
 // ─────────────────────────────────────────
 
+// Live auction page (teams + budgets — no results table)
+Route::get(
+    '/live/{code}',
+    [App\Http\Controllers\PublicController::class, 'live']
+)
+    ->name('public.live');
+
+// Player search page (separate route)
+Route::get(
+    '/live/{code}/search',
+    [App\Http\Controllers\PublicController::class, 'searchPage']
+)
+    ->name('public.search.page');
+
+// AJAX search player (by ID or name)
+Route::get(
+    '/live/{code}/search-player',
+    [App\Http\Controllers\PublicController::class, 'searchPlayer']
+)
+    ->name('public.search');
+
+// Team squad page
+Route::get(
+    '/live/{code}/team/{teamId}',
+    [App\Http\Controllers\PublicController::class, 'teamSquad']
+)
+    ->name('public.team.squad');
+
+// ── AUCTION ROUTES (add inside auth middleware group) ──
+
+// Search player (by ID or name)
+Route::get(
+    '/tournament/{tournamentId}/auction/search',
+    [App\Http\Controllers\AuctionController::class, 'searchPlayer']
+)
+    ->name('auction.searchPlayer');
 // Player Registration (public)
 Route::get('/auctionxi/player-register/{code}',  [PlayerController::class, 'publicRegister'])->name('public.player.register');
 Route::post('/auctionxi/player-register/{code}', [PlayerController::class, 'publicStore'])->name('public.player.store');

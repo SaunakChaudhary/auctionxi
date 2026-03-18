@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\Player;
 use App\Models\Tournament;
+use App\Models\AuctionResult;
+use App\Models\TeamPlayer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 
 class PlayerController extends Controller
 {
@@ -22,11 +24,9 @@ class PlayerController extends Controller
     public function publicRegister($code)
     {
         $tournament = Tournament::where('code', $code)->firstOrFail();
-
         if ($tournament->registration_status === 'closed') {
             return view('public.registration-closed', compact('tournament'));
         }
-
         return view('public.player-register', compact('tournament'));
     }
 
@@ -34,7 +34,6 @@ class PlayerController extends Controller
     public function publicStore(Request $request, $code)
     {
         $tournament = Tournament::where('code', $code)->firstOrFail();
-
         if ($tournament->registration_status === 'closed') {
             return back()->with('error', 'Registration is closed.');
         }
@@ -56,8 +55,7 @@ class PlayerController extends Controller
         $photo = null;
         if ($request->hasFile('photo')) {
             $photo = \App\Services\CloudinaryService::upload(
-                $request->file('photo'),
-                'auction-xi/players'
+                $request->file('photo'), 'auction-xi/players'
             );
         }
 
@@ -92,8 +90,8 @@ class PlayerController extends Controller
     {
         $tournament = $this->getTournament($tournamentId);
         $players    = Player::where('tournament_id', $tournamentId)
-            ->latest()
-            ->get();
+                            ->orderByRaw("CAST(SUBSTRING(player_id, 3) AS UNSIGNED) ASC")
+                            ->get();
 
         return view('player.index', compact('tournament', 'players'));
     }
@@ -102,13 +100,8 @@ class PlayerController extends Controller
     public function approve($tournamentId, $playerId)
     {
         $this->getTournament($tournamentId);
-
-        $player = Player::where('id', $playerId)
-            ->where('tournament_id', $tournamentId)
-            ->firstOrFail();
-
+        $player = Player::where('id', $playerId)->where('tournament_id', $tournamentId)->firstOrFail();
         $player->update(['status' => 'approved']);
-
         return back()->with('success', 'Player approved!');
     }
 
@@ -116,34 +109,118 @@ class PlayerController extends Controller
     public function reject($tournamentId, $playerId)
     {
         $this->getTournament($tournamentId);
+        $player = Player::where('id', $playerId)->where('tournament_id', $tournamentId)->firstOrFail();
+        $player->update(['status' => 'pending']);
+        return back()->with('success', 'Player set to pending!');
+    }
+
+    // ── ORGANIZER: Delete Single Player ──
+    public function destroy($tournamentId, $playerId)
+    {
+        $this->getTournament($tournamentId);
 
         $player = Player::where('id', $playerId)
-            ->where('tournament_id', $tournamentId)
-            ->firstOrFail();
+                        ->where('tournament_id', $tournamentId)
+                        ->firstOrFail();
 
-        $player->update(['status' => 'pending']);
+        // Delete photo from Cloudinary
+        \App\Services\CloudinaryService::delete($player->photo);
 
-        return back()->with('success', 'Player set to pending!');
+        // Reverse budget if sold
+        if ($player->status === 'sold') {
+            $result = AuctionResult::where('player_id', $player->id)
+                                   ->where('tournament_id', $tournamentId)
+                                   ->first();
+            if ($result && $result->team_id) {
+                \App\Models\Team::where('id', $result->team_id)
+                    ->decrement('spent', $result->sold_price ?? 0);
+            }
+        }
+
+        AuctionResult::where('player_id', $player->id)->delete();
+        TeamPlayer::where('player_id', $player->id)->delete();
+        $player->delete();
+
+        return back()->with('success', "Player '{$player->name}' deleted.");
+    }
+
+    // ── ORGANIZER: Delete ALL Players ──
+    public function destroyAll($tournamentId)
+    {
+        $tournament = $this->getTournament($tournamentId);
+
+        $players = Player::where('tournament_id', $tournamentId)->get();
+
+        foreach ($players as $player) {
+            \App\Services\CloudinaryService::delete($player->photo);
+        }
+
+        // Reset team spending
+        $tournament->teams()->update(['spent' => 0]);
+
+        AuctionResult::where('tournament_id', $tournamentId)->delete();
+        TeamPlayer::whereIn('player_id', $players->pluck('id'))->delete();
+        Player::where('tournament_id', $tournamentId)->delete();
+
+        return back()->with('success', 'All players deleted and team budgets reset.');
+    }
+
+    // ── ORGANIZER: Reorder (move up/down, swaps player_id strings) ──
+    public function reorder(Request $request, $tournamentId)
+    {
+        $this->getTournament($tournamentId);
+
+        $request->validate([
+            'player_db_id' => 'required|integer',
+            'direction'    => 'required|in:up,down',
+        ]);
+
+        // Get all players ordered numerically by player_id
+        $players = Player::where('tournament_id', $tournamentId)
+                         ->orderByRaw("CAST(SUBSTRING(player_id, 3) AS UNSIGNED) ASC")
+                         ->get();
+
+        $index = $players->search(fn($p) => $p->id === (int) $request->player_db_id);
+
+        if ($index === false) {
+            return back()->with('error', 'Player not found.');
+        }
+
+        $swapIndex = $request->direction === 'up' ? $index - 1 : $index + 1;
+
+        if ($swapIndex < 0 || $swapIndex >= $players->count()) {
+            return back()->with('error', 'Cannot move player further.');
+        }
+
+        $playerA = $players[$index];
+        $playerB = $players[$swapIndex];
+
+        $pidA = $playerA->player_id;
+        $pidB = $playerB->player_id;
+
+        // Swap via temp to avoid unique constraint collision
+        DB::transaction(function () use ($playerA, $playerB, $pidA, $pidB) {
+            DB::table('players')->where('id', $playerA->id)->update(['player_id' => 'TEMP__' . $playerA->id]);
+            DB::table('players')->where('id', $playerB->id)->update(['player_id' => $pidA]);
+            DB::table('players')->where('id', $playerA->id)->update(['player_id' => $pidB]);
+        });
+
+        return back()->with('success', 'Player order updated.');
     }
 
     // ── ORGANIZER: Edit Form ──
     public function edit($tournamentId, $playerId)
     {
         $tournament = $this->getTournament($tournamentId);
-        $player     = Player::where('id', $playerId)
-            ->where('tournament_id', $tournamentId)
-            ->firstOrFail();
-
+        $player     = Player::where('id', $playerId)->where('tournament_id', $tournamentId)->firstOrFail();
         return view('player.edit', compact('tournament', 'player'));
     }
 
     // ── ORGANIZER: Update ──
     public function update(Request $request, $tournamentId, $playerId)
     {
-        $tournament = $this->getTournament($tournamentId);
-        $player     = Player::where('id', $playerId)
-            ->where('tournament_id', $tournamentId)
-            ->firstOrFail();
+        $this->getTournament($tournamentId);
+        $player = Player::where('id', $playerId)->where('tournament_id', $tournamentId)->firstOrFail();
 
         $request->validate([
             'name'          => 'required|string|max:255',
@@ -163,8 +240,7 @@ class PlayerController extends Controller
         if ($request->hasFile('photo')) {
             \App\Services\CloudinaryService::delete($player->photo);
             $player->photo = \App\Services\CloudinaryService::upload(
-                $request->file('photo'),
-                'auction-xi/players'
+                $request->file('photo'), 'auction-xi/players'
             );
         }
 
@@ -183,8 +259,7 @@ class PlayerController extends Controller
             'base_price'    => $request->base_price ?? 0,
         ]);
 
-        return redirect()->route('player.index', $tournamentId)
-            ->with('success', 'Player updated!');
+        return redirect()->route('player.index', $tournamentId)->with('success', 'Player updated!');
     }
 
     // ── IMPORT: Form ──
@@ -195,23 +270,13 @@ class PlayerController extends Controller
     }
 
     // ── IMPORT: CSV ──
-    // Expected CSV columns (case-insensitive, trimmed):
-    //   REQUIRED : Player Name | Role | Mobile
-    //   OPTIONAL : Photo (Google Drive link) | Email | Age | City |
-    //              Batting Style | Bowling Style | Experience |
-    //              Jersey Number | Base Price
     public function importCsv(Request $request, $tournamentId)
     {
         $tournament = $this->getTournament($tournamentId);
-
-        $request->validate([
-            'csv_file' => 'required|file|mimes:csv,txt|max:5120',
-        ]);
+        $request->validate(['csv_file' => 'required|file|mimes:csv,txt|max:5120']);
 
         $file   = $request->file('csv_file');
         $handle = fopen($file->getPathname(), 'r');
-
-        // Read and normalise header row
         $rawHeader = fgetcsv($handle);
 
         if (!$rawHeader) {
@@ -219,129 +284,39 @@ class PlayerController extends Controller
             return back()->withErrors(['csv_file' => 'CSV file is empty or unreadable.']);
         }
 
-        // Normalise: lowercase + trim each header cell
-        $header = array_map(fn($h) => strtolower(trim($h)), $rawHeader);
-
+        $header   = array_map(fn($h) => strtolower(trim($h)), $rawHeader);
         $imported = 0;
         $skipped  = 0;
-        $errors   = [];
 
         while (($row = fgetcsv($handle)) !== false) {
+            if (empty(array_filter($row, fn($v) => trim($v) !== ''))) continue;
+            if (count($row) < count($header)) $row = array_pad($row, count($header), '');
 
-            // Skip completely empty rows
-            if (empty(array_filter($row, fn($v) => trim($v) !== ''))) {
-                continue;
-            }
-
-            // Pad row to match header length
-            if (count($row) < count($header)) {
-                $row = array_pad($row, count($header), '');
-            }
-
-            // Combine header => values
             $data = array_combine($header, $row);
+            $name = trim($data['player name'] ?? $data['playername'] ?? $data['name'] ?? '');
 
-            // ── REQUIRED: Player Name ──
-            // Accept: "player name" or "name"
-            $name = trim(
-                $data['player name'] ??
-                    $data['playername']  ??
-                    $data['name']        ?? ''
-            );
+            if ($name === '') { $skipped++; continue; }
 
-            if ($name === '') {
-                $skipped++;
-                continue;
-            }
-
-            // ── REQUIRED: Role ──
-            // Accept: "role"
             $role = trim($data['role'] ?? 'Batsman');
-            $validRoles = ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'];
-            if (!in_array($role, $validRoles, true)) {
-                $role = 'Batsman';
-            }
+            if (!in_array($role, ['Batsman','Bowler','All Rounder','Wicket Keeper'], true)) $role = 'Batsman';
 
-            // ── REQUIRED: Mobile ──
-            // Accept: "mobile" or "phone"
-            $mobile = trim(
-                $data['mobile'] ??
-                    $data['phone']  ?? '0000000000'
-            );
-
-            // ── OPTIONAL: Photo / Drive Link ──
-            // Accept: "photo" or "image url" or "image" or "drive link"
-            // ── OPTIONAL: Photo / Drive Link ──
-            $rawPhoto = trim(
-                $data['photo']      ??
-                    $data['image url']  ??
-                    $data['image_url']  ??
-                    $data['image']      ??
-                    $data['drive link'] ??
-                    $data['drive_link'] ??
-                    $data['photo url']  ??
-                    $data['photo_url']  ?? ''
-            );
-
-            $imageUrl = null;
-            if ($rawPhoto !== '') {
-                if (str_contains($rawPhoto, 'drive.google.com')) {
-                    $imageUrl = $this->convertGoogleDriveLink($rawPhoto);
-                } else {
-                    $imageUrl = $rawPhoto;
-                }
-            }
-            // ── OPTIONAL: Email ──
-            $email = trim($data['email'] ?? '') ?: null;
-
-            // ── OPTIONAL: Age ──
-            $ageRaw = trim($data['age'] ?? '');
-            $age    = (is_numeric($ageRaw) && $ageRaw > 0) ? (int)$ageRaw : null;
-
-            // ── OPTIONAL: City ──
-            $city = trim($data['city'] ?? '') ?: null;
-
-            // ── OPTIONAL: Batting Style ──
-            $battingStyle = trim(
-                $data['batting style'] ??
-                    $data['batting_style'] ??
-                    $data['batting']       ?? ''
-            ) ?: null;
-
-            // ── OPTIONAL: Bowling Style ──
-            $bowlingStyle = trim(
-                $data['bowling style'] ??
-                    $data['bowling_style'] ??
-                    $data['bowling']       ?? ''
-            ) ?: null;
-
-            // ── OPTIONAL: Experience ──
-            $experience = trim($data['experience'] ?? '') ?: null;
-
-            // ── OPTIONAL: Jersey Number ──
-            $jerseyNumber = trim(
-                $data['jersey number'] ??
-                    $data['jersey_number'] ??
-                    $data['jersey']        ?? ''
-            ) ?: null;
-
-            // ── OPTIONAL: Base Price ──
-            $basePriceRaw = trim(
-                $data['base price'] ??
-                    $data['base_price'] ??
-                    $data['baseprice']  ??
-                    $data['price']      ?? ''
-            );
-            $basePrice = is_numeric($basePriceRaw)
-                ? (float) $basePriceRaw
-                : (float) ($tournament->default_base_price ?? 0);
-
-            // Generate unique Player ID for this tournament
-            $playerId = $this->generatePlayerId($tournament->id);
+            $mobile       = trim($data['mobile'] ?? $data['phone'] ?? '0000000000');
+            $rawPhoto     = trim($data['photo'] ?? $data['image url'] ?? $data['image_url'] ?? $data['image'] ?? $data['drive link'] ?? $data['drive_link'] ?? $data['photo url'] ?? $data['photo_url'] ?? '');
+            $imageUrl     = $rawPhoto !== '' ? $this->convertGoogleDriveLink($rawPhoto) : null;
+            $email        = trim($data['email'] ?? '') ?: null;
+            $ageRaw       = trim($data['age'] ?? '');
+            $age          = (is_numeric($ageRaw) && $ageRaw > 0) ? (int)$ageRaw : null;
+            $city         = trim($data['city'] ?? '') ?: null;
+            $battingStyle = trim($data['batting style'] ?? $data['batting_style'] ?? $data['batting'] ?? '') ?: null;
+            $bowlingStyle = trim($data['bowling style'] ?? $data['bowling_style'] ?? $data['bowling'] ?? '') ?: null;
+            $experience   = trim($data['experience'] ?? '') ?: null;
+            $jerseyNumber = trim($data['jersey number'] ?? $data['jersey_number'] ?? $data['jersey'] ?? '') ?: null;
+            $basePriceRaw = trim($data['base price'] ?? $data['base_price'] ?? $data['baseprice'] ?? $data['price'] ?? '');
+            $basePrice    = is_numeric($basePriceRaw) ? (float)$basePriceRaw : (float)($tournament->default_base_price ?? 0);
 
             Player::create([
                 'tournament_id' => $tournament->id,
-                'player_id'     => $playerId,
+                'player_id'     => $this->generatePlayerId($tournament->id),
                 'name'          => $name,
                 'role'          => $role,
                 'mobile'        => $mobile,
@@ -357,40 +332,29 @@ class PlayerController extends Controller
                 'base_price'    => $basePrice,
                 'status'        => 'approved',
             ]);
+
             $imported++;
         }
 
         fclose($handle);
 
         $message = "{$imported} player(s) imported successfully!";
-        if ($skipped > 0) {
-            $message .= " ({$skipped} row(s) skipped — missing name.)";
-        }
+        if ($skipped > 0) $message .= " ({$skipped} row(s) skipped — missing name.)";
 
-        return redirect()
-            ->route('player.index', $tournamentId)
-            ->with('success', $message);
+        return redirect()->route('player.index', $tournamentId)->with('success', $message);
     }
 
     // ── HELPER: Generate Unique Player ID per Tournament ──
     private function generatePlayerId(int $tournamentId): string
     {
         $lastPlayer = Player::where('tournament_id', $tournamentId)
-            ->orderBy('id', 'desc')
-            ->first();
+                            ->orderByRaw("CAST(SUBSTRING(player_id, 3) AS UNSIGNED) DESC")
+                            ->first();
 
-        $newNumber = $lastPlayer
-            ? ((int) substr($lastPlayer->player_id, 2)) + 1
-            : 1001;
+        $newNumber = $lastPlayer ? ((int) substr($lastPlayer->player_id, 2)) + 1 : 1001;
+        $playerId  = 'PX' . $newNumber;
 
-        $playerId = 'PX' . $newNumber;
-
-        // Guarantee uniqueness within this tournament
-        while (
-            Player::where('tournament_id', $tournamentId)
-            ->where('player_id', $playerId)
-            ->exists()
-        ) {
+        while (Player::where('tournament_id', $tournamentId)->where('player_id', $playerId)->exists()) {
             $newNumber++;
             $playerId = 'PX' . $newNumber;
         }
@@ -399,39 +363,18 @@ class PlayerController extends Controller
     }
 
     // ── HELPER: Convert any Google Drive link to direct-embed URL ──
-    //
-    // Handles all common Google Drive URL formats:
-    //   1. https://drive.google.com/file/d/FILE_ID/view?usp=sharing
-    //   2. https://drive.google.com/file/d/FILE_ID/view
-    //   3. https://drive.google.com/open?id=FILE_ID
-    //   4. https://drive.google.com/uc?id=FILE_ID
-    //   5. https://drive.google.com/thumbnail?id=FILE_ID
-    //
-    // Output: https://drive.google.com/uc?export=view&id=FILE_ID
-    //
     private function convertGoogleDriveLink(string $url): string
     {
         $url = trim($url);
-
-        if (!str_contains($url, 'drive.google.com')) {
-            return $url;
-        }
+        if (!str_contains($url, 'drive.google.com')) return $url;
 
         $fileId = null;
-
-        // Pattern 1: /file/d/{ID}/
         if (preg_match('#/file/d/([a-zA-Z0-9_-]+)#', $url, $m)) {
             $fileId = $m[1];
-        }
-        // Pattern 2: ?id={ID} or &id={ID}
-        elseif (preg_match('#[?&]id=([a-zA-Z0-9_-]+)#', $url, $m)) {
+        } elseif (preg_match('#[?&]id=([a-zA-Z0-9_-]+)#', $url, $m)) {
             $fileId = $m[1];
         }
 
-        if ($fileId) {
-            return 'https://lh3.googleusercontent.com/d/' . $fileId . '=w200';
-        }
-
-        return $url;
+        return $fileId ? 'https://lh3.googleusercontent.com/d/' . $fileId . '=w200' : $url;
     }
 }

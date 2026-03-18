@@ -31,20 +31,40 @@
             <div class="ap-header-actions">
                 <form method="POST" action="{{ route('auction.updateStatus', $tournament->id) }}" style="display:inline;">
                     @csrf
-                    @if ($tournament->auction_status === 'pending')
-                        <input type="hidden" name="status" value="live">
-                        <button type="submit" class="ap-btn ap-btn-live">
-                            <i class="bi bi-broadcast"></i> Start Auction
-                        </button>
-                    @elseif($tournament->auction_status === 'live')
-                        <input type="hidden" name="status" value="completed">
-                        <button type="submit" class="ap-btn ap-btn-end">
-                            <i class="bi bi-stop-circle-fill"></i> End Auction
-                        </button>
-                    @else
-                        <span class="ap-completed-badge">
-                            <i class="bi bi-check-circle-fill"></i> Completed
-                        </span>
+                    {{-- Primary status action --}}
+                    <form method="POST" action="{{ route('auction.updateStatus', $tournament->id) }}"
+                        style="display:inline;">
+                        @csrf
+                        @if ($tournament->auction_status === 'pending')
+                            <input type="hidden" name="status" value="live">
+                            <button type="submit" class="ap-btn ap-btn-live">
+                                <i class="bi bi-broadcast"></i> Start Auction
+                            </button>
+                        @elseif($tournament->auction_status === 'live')
+                            <input type="hidden" name="status" value="completed">
+                            <button type="submit" class="ap-btn ap-btn-end"
+                                onclick="return confirm('End the auction? You can reset it back to Pending if needed.')">
+                                <i class="bi bi-stop-circle-fill"></i> End Auction
+                            </button>
+                        @else
+                            <span class="ap-completed-badge">
+                                <i class="bi bi-check-circle-fill"></i> Completed
+                            </span>
+                        @endif
+                    </form>
+
+                    {{-- Reset button — shown whenever auction is not pending --}}
+                    @if ($tournament->auction_status !== 'pending')
+                        <form method="POST" action="{{ route('auction.updateStatus', $tournament->id) }}"
+                            style="display:inline;"
+                            onsubmit="return confirm('Reset auction to Pending?\n\nNote: Auction results and team budgets are NOT cleared — only the status changes. You can re-start the auction after resetting.');">
+                            @csrf
+                            <input type="hidden" name="status" value="pending">
+                            <button type="submit" class="ap-btn ap-btn-reset">
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                                Reset to Pending
+                            </button>
+                        </form>
                     @endif
                 </form>
                 <a href="{{ route('public.live', $tournament->code) }}" target="_blank" class="ap-btn ap-btn-ghost">
@@ -122,7 +142,7 @@
                     {{-- ── SEARCH BAR ── --}}
                     <div class="ap-search-wrap">
                         <input type="text" id="pidInput" class="ap-search-input"
-                            placeholder="Enter Player ID — e.g. PX1001" autocomplete="off" spellcheck="false">
+                            placeholder="Enter Player ID or Name..." autocomplete="off" spellcheck="false">
                         <button type="button" id="btnSearch" class="ap-search-btn">
                             <i class="bi bi-search"></i>
                             Search
@@ -145,7 +165,8 @@
                                 No players registered
                             @endif
                         </div>
-                        <button type="button" id="btnNext" class="ap-nav-btn" {{ $totalPlayers > 1 ? '' : 'disabled' }}>
+                        <button type="button" id="btnNext" class="ap-nav-btn"
+                            {{ $totalPlayers > 1 ? '' : 'disabled' }}>
                             Next
                             <i class="bi bi-chevron-right"></i>
                         </button>
@@ -593,8 +614,8 @@
 @push('styles')
     <style>
         /* ═══════════════════════════════════════════
-                                               AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
-                                               ═══════════════════════════════════════════ */
+                                                           AUCTION PANEL — PROFESSIONAL DESIGN SYSTEM
+                                                           ═══════════════════════════════════════════ */
 
         /* ── VARIABLES ── */
         :root {
@@ -1860,6 +1881,18 @@
                 height: 180px;
             }
         }
+
+        .ap-btn-reset {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1.5px solid #cbd5e1;
+        }
+
+        .ap-btn-reset:hover {
+            background: #fef9c3;
+            border-color: #fcd34d;
+            color: #92400e;
+        }
     </style>
 @endpush
 
@@ -2068,7 +2101,8 @@
             setLoadingState(true);
 
             try {
-                const url = SEARCH_URL + '?player_id=' + encodeURIComponent(raw);
+                const url = SEARCH_URL + '?q=' + encodeURIComponent(raw);
+
                 const resp = await fetch(url, {
                     headers: {
                         'Accept': 'application/json'

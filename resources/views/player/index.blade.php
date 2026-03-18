@@ -230,43 +230,58 @@
                                 </td>
 
                                 {{-- Actions --}}
+
                                 <td>
-                                    <div class="d-flex gap-1">
-                                        {{-- Approve --}}
-                                        @if ($player->status === 'pending')
-                                            <form method="POST"
-                                                action="{{ route('player.approve', [$tournament->id, $player->id]) }}">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-success" title="Approve">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-                                            </form>
-                                        @endif
-
-                                        {{-- Reject/Pending --}}
-                                        @if ($player->status === 'approved')
-                                            <form method="POST"
-                                                action="{{ route('player.reject', [$tournament->id, $player->id]) }}">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-warning" title="Set Pending">
-                                                    <i class="bi bi-arrow-counterclockwise">
-                                                    </i>
-                                                </button>
-                                            </form>
-                                        @endif
-
-                                        {{-- Edit --}}
-                                        <a href="{{ route('player.edit', [$tournament->id, $player->id]) }}"
-                                            class="btn btn-sm btn-outline-primary" title="Edit">
-                                            <i class="bi bi-pencil-fill"></i>
-                                        </a>
-
-                                        {{-- View Modal --}}
-                                        <button class="btn btn-sm btn-outline-secondary"
-                                            onclick="viewPlayer({{ $player }})" title="View Details">
-                                            <i class="bi bi-eye-fill"></i>
-                                        </button>
+                                    {{-- Position arrows --}}
+                                    <div
+                                        style="display:inline-flex;flex-direction:column;gap:2px;
+                vertical-align:middle;margin-right:6px;">
+                                        {{-- Move Up --}}
+                                        <form method="POST" action="{{ route('player.reorder', $tournament->id) }}"
+                                            style="margin:0;">
+                                            @csrf
+                                            <input type="hidden" name="player_db_id" value="{{ $player->id }}">
+                                            <input type="hidden" name="direction" value="up">
+                                            <button type="submit" title="Move Up" class="btn btn-light btn-sm"
+                                                style="padding:1px 5px;font-size:0.65rem;line-height:1;
+                           border:1px solid #e2e8f0;"
+                                                {{ $loop->first ? 'disabled' : '' }}>
+                                                <i class="bi bi-chevron-up"></i>
+                                            </button>
+                                        </form>
+                                        {{-- Move Down --}}
+                                        <form method="POST" action="{{ route('player.reorder', $tournament->id) }}"
+                                            style="margin:0;">
+                                            @csrf
+                                            <input type="hidden" name="player_db_id" value="{{ $player->id }}">
+                                            <input type="hidden" name="direction" value="down">
+                                            <button type="submit" title="Move Down" class="btn btn-light btn-sm"
+                                                style="padding:1px 5px;font-size:0.65rem;line-height:1;
+                           border:1px solid #e2e8f0;"
+                                                {{ $loop->last ? 'disabled' : '' }}>
+                                                <i class="bi bi-chevron-down"></i>
+                                            </button>
+                                        </form>
                                     </div>
+
+                                    {{-- Edit button --}}
+                                    <a href="{{ route('player.edit', [$tournament->id, $player->id]) }}"
+                                        class="btn btn-outline-primary btn-sm me-1" style="font-size:0.75rem;">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </a>
+
+                                    {{-- Delete single player --}}
+                                    <form method="POST"
+                                        action="{{ route('player.destroy', [$tournament->id, $player->id]) }}"
+                                        style="display:inline;"
+                                        onsubmit="return confirm('Delete {{ addslashes($player->name) }}? This cannot be undone.');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-outline-danger btn-sm"
+                                            title="Delete Player" style="font-size:0.75rem;">
+                                            <i class="bi bi-trash3-fill"></i>
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         @endforeach
@@ -291,6 +306,18 @@
                     <a href="{{ route('player.import', $tournament->id) }}" class="btn btn-outline-primary">
                         <i class="bi bi-upload me-2"></i>Import CSV
                     </a>
+                    @if ($players->count() > 0)
+                        <form method="POST" action="{{ route('player.destroyAll', $tournament->id) }}"
+                            id="deleteAllForm" style="display:inline;">
+                            @csrf
+                            @method('DELETE')
+                            <button type="button" onclick="confirmDeleteAll()" class="btn btn-outline-danger btn-sm"
+                                style="font-weight:600;">
+                                <i class="bi bi-trash3-fill me-1"></i>
+                                Delete All ({{ $players->count() }})
+                            </button>
+                        </form>
+                    @endif
                 </div>
             </div>
         @endif
@@ -462,6 +489,27 @@
             new bootstrap.Modal(
                 document.getElementById('playerModal')
             ).show();
+        }
+    </script>
+    <script>
+        function confirmDeleteAll() {
+            const count = {{ $players->count() }};
+            if (confirm(
+                    `⚠️ Delete ALL ${count} players?\n\n` +
+                    `This will:\n` +
+                    `• Delete all player records\n` +
+                    `• Reset all team spending to ₹0\n` +
+                    `• Clear all auction results\n\n` +
+                    `This CANNOT be undone. Type DELETE to confirm.`
+                )) {
+                // Second confirmation
+                const typed = prompt('Type DELETE to confirm:');
+                if (typed === 'DELETE') {
+                    document.getElementById('deleteAllForm').submit();
+                } else {
+                    alert('Cancelled — you did not type DELETE correctly.');
+                }
+            }
         }
     </script>
 @endpush
