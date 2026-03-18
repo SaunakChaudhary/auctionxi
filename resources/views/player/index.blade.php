@@ -34,6 +34,18 @@
                     <i class="bi bi-box-arrow-up-right me-2"></i>
                     Registration Link
                 </a>
+                @if ($players->count() > 0)
+                    <form method="POST" action="{{ route('player.destroyAll', $tournament->id) }}" id="deleteAllForm"
+                        style="display:inline;">
+                        @csrf
+                        @method('DELETE')
+                        <button type="button" onclick="confirmDeleteAll()" class="btn btn-outline-danger btn-sm"
+                            style="font-weight:600;">
+                            <i class="bi bi-trash3-fill me-1"></i>
+                            Delete All ({{ $players->count() }})
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
     </div>
@@ -306,18 +318,6 @@
                     <a href="{{ route('player.import', $tournament->id) }}" class="btn btn-outline-primary">
                         <i class="bi bi-upload me-2"></i>Import CSV
                     </a>
-                    @if ($players->count() > 0)
-                        <form method="POST" action="{{ route('player.destroyAll', $tournament->id) }}"
-                            id="deleteAllForm" style="display:inline;">
-                            @csrf
-                            @method('DELETE')
-                            <button type="button" onclick="confirmDeleteAll()" class="btn btn-outline-danger btn-sm"
-                                style="font-weight:600;">
-                                <i class="bi bi-trash3-fill me-1"></i>
-                                Delete All ({{ $players->count() }})
-                            </button>
-                        </form>
-                    @endif
                 </div>
             </div>
         @endif
